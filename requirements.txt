@@ -1,0 +1,11 @@
+Python >= 3.7
+perl
+Matplotlib
+pandas
+liftoff
+cd-hit
+rtg-tools
+truvari
+GFABase
+GraphAligner
+Panscan Databases
