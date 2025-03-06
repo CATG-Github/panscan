@@ -32,14 +32,12 @@ panscan
 ```
 
 
-## Complex loci analyses 
-The complex loci can be anlayzed from the vcf file generated from [Minigraph-cactus](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/pangenome.md) pipeline. 
-The complex sites, as defined in the draft [Arab Pangenome reference](https://www.biorxiv.org/content/10.1101/2024.07.09.602638v1), are the sites with more than 5 haplotypes (alleles) and atleast one 10kb structural variant (SV). To list all of the complex sites within this definition
-```
-panscan complex --regions -a 5 -n1 -s 10000
-```
+## Complex region analyses 
+### Complex Sites
+The complex sites (not to be interchanged with complex region) can be anlayzed from the vcf file generated from [Minigraph-cactus](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/pangenome.md) pipeline. 
+The complex sites, as defined in the draft [Arab Pangenome reference](https://www.biorxiv.org/content/10.1101/2024.07.09.602638v1), are the sites with more than 5 haplotypes (alleles) and atleast one 10kb structural variant (SV). 
 
-use ```-a```, ```-n```, ```-s``` to redefine the parameters for a complex site. 
+You can use  ```-a```, ```-n```, ```-s``` to redefine the parameters for a complex site. 
 
 ### Complex regions
 Complex regions are regions of 100Kb with atleast one complex site and another SV. To list complex regions use the --regions flag with
@@ -48,9 +46,7 @@ Complex regions are regions of 100Kb with atleast one complex site and another S
 ```--sites``` can be used to define how many sites should be present
 ```--sv``` can be used to define how many secondary SVs should be present
 
-for a region to be considered complex.
-
-
+for a region to be considered a complex region.
 
 ### End-to-end
 Run the command below in full to produce complex regions and haplotype walks for each sample in all the regions. 
