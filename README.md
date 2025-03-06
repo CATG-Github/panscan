@@ -36,7 +36,7 @@ panscan
 The complex loci can be anlayzed from the vcf file generated from [Minigraph-cactus](https://github.com/ComparativeGenomicsToolkit/cactus/blob/master/doc/pangenome.md) pipeline. 
 The complex sites, as defined in the draft [Arab Pangenome reference](https://www.biorxiv.org/content/10.1101/2024.07.09.602638v1), are the sites with more than 5 haplotypes (alleles) and atleast one 10kb structural variant (SV). To list all of the complex sites within this definition
 ```
-panscan complex --list -a 5 -n1 -s 10000
+panscan complex --regions -a 5 -n1 -s 10000
 ```
 
 use ```-a```, ```-n```, ```-s``` to redefine the parameters for a complex site. 
