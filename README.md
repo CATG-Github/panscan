@@ -1,19 +1,30 @@
+# PanScan
+PanScan is a computational tool that offers advanced capabilities for identifying novel sequences, SVs, and repetitive regions. With its ability to annotate duplicate genes and visualize complex genomic landscapes, PanScan provides invaluable insights into genetic diversity.
 
-# Panscan
-Pangenome analyses toolkit.
 
 ## Requirements
-- Python >= 3.7 
-- perl
-- Matplotlib
-- pandas
-- [liftoff](https://github.com/agshumate/Liftoff) 
+Programming Languages:
+- [perl](https://www.perl.org/)
+- [Python >= 3.7](https://www.python.org/)
+- [R](https://www.r-project.org/)
+
+Packages:
+- Python : argparse, Image, ImageDraw, ImageFont, matplotlib, numpy, os, pandas, pickle, sys
+- perl : Getopt::Long, YAML::XS, Cwd, File::Copy, Exporter
+
+Bionformatics Tools:
+- [Bandage](https://rrwick.github.io/Bandage)
+- [BCFtools](https://github.com/samtools/bcftools)
+- [bgzip](https://www.htslib.org/doc/bgzip.html)
 - [cd-hit](https://github.com/weizhongli/cdhit)
-- [rtg-tools](https://github.com/RealTimeGenomics/rtg-tools)
-- [truvari](https://github.com/ACEnglish/truvari)
 - [GFABase](https://github.com/mlin/gfabase)
 - [GraphAligner](https://github.com/maickrau/GraphAligner)
-- [Panscan Databases](https://drive.google.com/drive/folders/16O6InjctvIsGSTzroDu2366_wMrTFR3p)
+- [Liftoff](https://github.com/agshumate/Liftoff)
+- [Panscan Databases](https://drive.google.com/drive/folders/16O6InjctvIsGSTzroDu2366_wMrTFR3p) : bed files generated from [dbSNP](https://www.ncbi.nlm.nih.gov/snp), [1000 Genomes](https://www.internationalgenome.org/home), [gnomAD](https://gnomad.broadinstitute.org), [GME](https://illumina.github.io/NirvanaDocumentation/data-sources/gme), [DGV](https://dgv.tcag.ca/dgv/app/home)
+- [rtg-tools](https://github.com/RealTimeGenomics/rtg-tools)
+- [tabix](https://www.htslib.org/doc/tabix.html)
+- [truvari](https://github.com/ACEnglish/truvari)
+- [Rideogram](https://cran.r-project.org/web/packages/RIdeogram/vignettes/RIdeogram.html) 
 
 
 ## Installation
