@@ -67,7 +67,7 @@ panscan complex --ref_fasta chm13v2.0.fa --gaf_file chm13_mapped_genes.gaf --sep
 ```
 
 ### Plotting
-To now plot the novel sequences that were produced using the above command, the ```--plot_complex``` option can be used.
+To plot the complex regions (all sample walks and genes present in detected complex sequences) that were produced using the above command, the ```--plot_complex``` option can be used.
 ```
 panscan complex --ref_fasta chm13v2.0.fa --gaf_file chm13_mapped_genes.gaf --sep_pattern '#0#' --gff3 chm13v2.0_RefSeq_Liftoff_v5.1.gff3 -a 5 -n 1 -s 10000 --regions -l 100000 --sites 1 --sv 1 --ref_name CHM13 --plot_complex panscan.vcf panscan.gfab 
 ```
