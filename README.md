@@ -66,6 +66,12 @@ Run the command below in full to produce complex regions and haplotype walks for
 panscan complex --ref_fasta chm13v2.0.fa --gaf_file chm13_mapped_genes.gaf --sep_pattern '#0#' --gff3 chm13v2.0_RefSeq_Liftoff_v5.1.gff3 -a 5 -n 1 -s 10000 --regions -l 100000 --sites 1 --sv 1 --ref_name CHM13 panscan.vcf panscan.gfab
 ```
 
+###Plotting
+To now plot the novel sequences that were produced using the above command, the ```--plot_complex``` option can be used.
+```
+panscan complex --ref_fasta chm13v2.0.fa --gaf_file chm13_mapped_genes.gaf --sep_pattern '#0#' --gff3 chm13v2.0_RefSeq_Liftoff_v5.1.gff3 -a 5 -n 1 -s 10000 --regions -l 100000 --sites 1 --sv 1 --ref_name CHM13 --plot_complex panscan.vcf panscan.gfab 
+```
+
 **The gaf files needed for the complex command should be produced by aligning the gene sequences file to your pangenome.** 
 The gene sequence files (and scripts to produce them for other references)  are present in the **complex.tar.gz** file present in the [Panscan Database](https://drive.google.com/drive/folders/16O6InjctvIsGSTzroDu2366_wMrTFR3p).
 
@@ -98,19 +104,12 @@ The ```panscan gene_dup``` command will ask you for paths to HPRC and CPC matric
 
 For all modules in this section you can use the Sample.vcf file provided in the repo for testing
 
-### Preprocess Vcf
-
-This module will convert multi-allelic Pangenome VCF records to single-allelic ones. Next, complex indels will be decomposed into SNPs and indels using the RTG tools "decompose" program. Finally, the genotypes of variants at the same locus will be merged to produce the final pre-processed VCF file.
-
-```
-panscan preprocess_vcf --i Sample.vcf
-```
 
 ### Novel seq
 This module identifies novel sequences present in Pangenome VCF file1 by comparing SV insertions with those in Pangenome VCF file2 and reports them in FASTA format. Initially, the input VCF files undergo pre-processing, which involves splitting multi-allelic variants into single-allelic ones and decomposing complex variants into indels and SNPs using the "decompose" program from RTG Tools. After pre-processing, the SV insertions in the VCF files are compared using the "truvari bench" command, identifying novel SV insertions in VCF file1. These novel insertions at the same locus are clustered using the CD-HIT program, and the final novel sequence FASTA file is generated.
 
 ```
-panscan novel_seq APR.vcf CPC-HPRC.vcf 
+panscan novel_seq -i /path/to/panscan/Sample.vcf -r /path/to/panscan/Reference.vcf -t 4 --dpi 600 --op /path/to/my/output --debug
 ```
 
 The provided Pangenome VCF files of the APR and CPC-HPRC can be used to be compared with your VCF files as well.
@@ -119,7 +118,6 @@ The provided Pangenome VCF files of the APR and CPC-HPRC can be used to be compa
 This module identifies novel variants (SNPs, InDels, and SVs) in the input Pangenome VCF file by comparing them against public databases like dbSNP, gnomAD, 1000 Genomes, GME, and DGV.
 
 ```
-panscan find_uniq_variants --i Sample.vcf --t SNP --db ALL --op 80 --output novel_variants  --db-path downloads/database
-```
+panscan find_uniq_variants -i /path/to//panscan/Sample.vcf -t SNP --db ALL --overlap 80 --db-path /path/to/databases --op /path/to/output --debug```
 
 **This function needs the path for the databases to be provided to it**. These databases are present in the **database.tar.gz** present in the [Panscan Database](https://drive.google.com/drive/folders/16O6InjctvIsGSTzroDu2366_wMrTFR3p).
