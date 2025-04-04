@@ -6,6 +6,9 @@ import os
 import random
 import re
 import json
+import glob
+from PIL import Image, ImageDraw, ImageFont
+import shutil
 
 def extract_info(info_str, key):
     for field in info_str.split(';'):
@@ -197,17 +200,29 @@ def produce_plottable(*task):
     
     
     def get_segement_colors_from_alignment(df_all, section_genes, color_files_dir):
-        #####debug zome
-        print(df_all)
-        print("Section genes:", section_genes)
-        print("Initial df_all shape:", df_all.shape)
-        #####
-        df_all = df_all[(df_all[0].isin(section_genes)) & (df_all[11] > 0)]
-        print("Filtered df_all shape:", df_all.shape)    
-        df_all = df_all[(df_all[0].isin(section_genes)) & (df_all[11] > 0)]
+        distinct_colors = [
+            "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b",
+            "#e377c2", "#7f7f7f", "#bcbd22", "#17becf", "#393b79", "#637939",
+            "#8c6d31", "#843c39", "#7b4173"
+        ]
+        used_colors = set()
+        color_map = {}  # To store assigned colors
 
+        def get_new_color():
+            """Assign a new color: first use distinct colors, then randomize."""
+            if len(used_colors) < len(distinct_colors):
+                new_color = distinct_colors[len(used_colors)]
+            else:
+                while True:
+                    new_color = "#%06x" % random.randint(0, 0xFFFFFF)
+                    if new_color not in used_colors:
+                        break
+            used_colors.add(new_color)
+            return new_color
+
+        # Keep the original logic intact
+        df_all = df_all[(df_all[0].isin(section_genes)) & (df_all[11] > 0)]
         df_all['index'] = df_all.groupby(0).cumcount() + 1
-        
         df_all['Numbers'] = df_all[5].apply(parse_string)
 
         to_drop = []
@@ -218,37 +233,30 @@ def produce_plottable(*task):
                         to_drop.append(df_all.iloc[i].name)
                     else:
                         to_drop.append(df_all.iloc[j].name)
-                        
+
         df_all.drop(to_drop, inplace=True)
         df_all.drop(columns=['Numbers'], inplace=True)
-        
+
         df = df_all[[0, 5]]
         df = df.groupby(0).agg(lambda x: ''.join(x)).reset_index()
-        
-        def random_color():
-            return "#%06x" % random.randint(0, 0xFFFFFF)
 
-        df['color'] = df.apply(lambda x: random_color(), axis=1)
-        
-        start_hex = '#073f40'
-        end_hex = '#0e0d2b'
-        
-        
-
-
-        items=[]
+        items = []
         for i, row in df.iterrows():
             gene = str(row[0])
-            nodes = re.split(r'[<>]',row[5])
-            colors = gradient(start_hex, end_hex, len(nodes))   
+            nodes = re.split(r'[<>]', row[5])
+
+            if gene not in color_map:
+                color_map[gene] = get_new_color()  # Assign color only if not assigned
+
             with open(f'{color_files_dir}/gene_colors/{gene}.csv', 'w') as f:
-                
-            
-                for node, color in zip(nodes, colors):
-                    if node != '':
-                        f.write(f'{node}, {row["color"]}\n')
-                        items.append((node, row['color']))
+                for node in nodes:
+                    if node:
+                        f.write(f'{node}, {color_map[gene]}\n')
+                        items.append((node, color_map[gene]))
+
         return pd.DataFrame(items), df_all
+
+
     
     
     color_files_dir = f'{workdir}/color_csvs'
@@ -294,10 +302,16 @@ def produce_plottable(*task):
         sample_walks[k] = set(viz_list).intersection(set(v))
     for k, v in sample_walks.items():
         colors = gradient('#073f40', '#2b184d', len(v))
+        solid_color = '#073f40'  # Define the solid color you want to assign
         with open(f'{color_files_dir}/{k}.walks.csv', 'w') as f:
-            for item, color in zip(v, colors):
-                f.write(f'{item},{color}\n')
+            for item in v:
+                f.write(f'{item},{solid_color}\n')
+    
+    # Existing sample_haps processing for protein-coding genes
     sample_haps = {}
+    hap_directory = f'{workdir}/sample_haps/'
+    Path(hap_directory).mkdir(parents=True, exist_ok=True)
+    
     for k, v in sample_walks.items():
         if k not in sample_haps:
             sample_haps[k] = []
@@ -306,15 +320,42 @@ def produce_plottable(*task):
             if len(set(v).intersection(set(vj))) > 1:
                 sample_haps[k].append(kj)
                 
-    hap_directory = f'{workdir}/sample_haps/'
-    Path(hap_directory).mkdir(parents=True, exist_ok=True)
-    with open(f'{hap_directory}/sample_haps.csv', 'w') as f:
+    # Save protein-coding sample haps
+    with open(f'{hap_directory}/sample_haps_pc.csv', 'w') as f:
         for i,haps in sample_haps.items():
             f.write(f'{i} : {",".join(haps)}\n')
+    
+    # Create a new genes_walks dictionary using all_genes_all
+    all_genes_walks = {}
+    for i, row in all_genes_all.iterrows():
+        gene = row[0]
+        gene_index = row['index']
+        path = re.split(r'[<>]',row[5])
+        s_i = f'{gene}_{gene_index}'
+        if gene not in all_genes_walks:
+            all_genes_walks[s_i] = []
             
-    haps = open(f'{hap_directory}/sample_haps.csv').read().splitlines()
+        all_genes_walks[s_i].extend(path)
+    
+    # Generate sample haps for all genes
+    sample_haps_all = {}
+    for k, v in sample_walks.items():
+        if k not in sample_haps_all:
+            sample_haps_all[k] = []
+            
+        for kj, vj in all_genes_walks.items():
+            if len(set(v).intersection(set(vj))) > 1:
+                sample_haps_all[k].append(kj)
+    
+    # Save all genes sample haps
+    with open(f'{hap_directory}/sample_haps_all.csv', 'w') as f:
+        for i,haps in sample_haps_all.items():
+            f.write(f'{i} : {",".join(haps)}\n')
+            
+    haps = open(f'{hap_directory}/sample_haps_pc.csv').read().splitlines()
     haps_dict = {hap.split(':')[0] : tuple(hap.split(':')[-1].split(',')) for hap in haps}
-            
+
+    
     def count_unique_lists(d):
         count_dict = {}
     
@@ -336,7 +377,7 @@ def produce_plottable(*task):
     json_ready_result = {str(list(key)): value for key, value in result.items()}
 
     # Save the result to a JSON file
-    with open(f'{hap_directory}/haps_counts.json', 'w') as f:
+    with open(f'{hap_directory}/haps_counts_pc.json', 'w') as f:
         json.dump(json_ready_result, f, indent=4)
 
     return result
@@ -380,7 +421,7 @@ def run_panscan_complex(vcf_file, a, n, s, l, sites, sv, gfab, ref_fasta, gaf, s
  
             region = 'complex'
             cutpoints = 1
-            graph_base = gfab.split('.')[0]
+            graph_base = os.path.splitext(os.path.basename(gfab))[0]
             
             
             gene_alignments = gaf
@@ -407,15 +448,343 @@ def run_panscan_complex(vcf_file, a, n, s, l, sites, sv, gfab, ref_fasta, gaf, s
         
             tasks.append((gfab, gff3_file, region, cutpoints, graph_base, viz_output, connected_output, ref_name, chrom, int(start), int(end), query_region, workdir, gene_alignments, df_all, sep_pattern))
 
+        # Add this line to generate and potentially save the DataFrame
+         
+
     
     for task in tasks:
         produce_plottable(*task)
+
+def generate_complex_sites_dataframe():
+    # Initialize lists to store data
+    complex_sites = []
+    complex_regions = []
+    genes_detected = []
+    sample_haps = []
+    pc_gene_counts = []
+    all_gene_counts = []
+    unique_hap_counts = []
+
+    # Iterate through directories in all_plottables
+    for complex_site_dir in glob.glob('all_plottables/*'):
+        # Extract complex site name
+        complex_site = os.path.basename(complex_site_dir)
+
+        # Check for gene color CSV files
+        gene_colors_dir = os.path.join(complex_site_dir, 'color_csvs', 'gene_colors')
+        gene_color_files = glob.glob(os.path.join(gene_colors_dir, '*.csv'))
+
+        # Determine if complex region
+        has_complex_region = len(gene_color_files) > 0
+
+        # Extract gene names
+        genes = [os.path.splitext(os.path.basename(f))[0] for f in gene_color_files]
+        genes_str = ','.join(genes) if genes else ''
+
+        # Read sample haps for protein coding and all genes
+        pc_sample_haps_file = os.path.join(complex_site_dir, 'sample_haps', 'sample_haps_pc.csv')
+        all_sample_haps_file = os.path.join(complex_site_dir, 'sample_haps', 'sample_haps_all.csv')
+
+        # Function to parse sample haps and get counts
+        def parse_sample_haps(filepath):
+            sample_haps_info = []
+            gene_counts = {}
+
+            if os.path.exists(filepath):
+                with open(filepath, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:  # Skip empty lines
+                            continue
+
+                        try:
+                            sample, haps = line.split(' : ')
+                            haps_list = haps.split(',')
+
+                            # Count unique genes for each sample
+                            uniquegenes = set(hap.split('')[0] for hap in haps_list)
+                            gene_counts[sample] = len(unique_genes)
+
+                            sample_haps_info.append(f"{sample}:{haps}")
+                        except ValueError:
+                            print(f"Skipping malformed line in {filepath}: {line}")
+
+            return ' ; '.join(sample_haps_info), gene_counts        
+
+        # Process sample haps
+        pc_sample_haps_str, pc_gene_counts_dict = parse_sample_haps(pc_sample_haps_file)
+        all_sample_haps_str, all_gene_counts_dict = parse_sample_haps(all_sample_haps_file)
+
+        # Prepare gene count strings
+        pc_gene_count_str = ' ; '.join(f"{sample}:{count}" for sample, count in pc_gene_counts_dict.items())
+        all_gene_count_str = ' ; '.join(f"{sample}:{count}" for sample, count in all_gene_counts_dict.items())
+
+        # Optional: count unique haplotypes
+        unique_haps_file = os.path.join(complex_site_dir, 'sample_haps', 'haps_counts.json')
+        unique_haps_count = 0
+        if os.path.exists(unique_haps_file):
+            with open(unique_haps_file, 'r') as f:
+                haps_data = json.load(f)
+                unique_haps_count = len(haps_data)
+
+        # Store information
+        complex_sites.append(complex_site)
+        complex_regions.append('yes' if has_complex_region else 'no')
+        genes_detected.append(genes_str)
+        sample_haps.append(pc_sample_haps_str)
+        pc_gene_counts.append(pc_gene_count_str)
+        all_gene_counts.append(all_gene_count_str)
+        unique_hap_counts.append(unique_haps_count)
+
+    # Create DataFrame
+    df = pd.DataFrame({
+        'Complex Site': complex_sites,
+         #'Complex Region': complex_regions,
+        'Genes Detected': genes_detected,
+        'Total Genes Detected': [len(genes.split(',')) if genes else 0 for genes in genes_detected],
+        'Protein Coding Samples': sample_haps,
+        'Protein Coding Gene Counts per Sample': pc_gene_counts,
+        'All Gene Counts per Sample': all_gene_counts
+    })
+
+    #df=df.sort_values(by='Total Genes Detected', ascending=False)
+    return df
             
-
-
-
-
+def plot_complex_sites(workdir=None):
+    """Generate colored GFA files and Bandage images for complex sites with automatic legends."""
+    colored_gfa_dir = 'colored_gfas'
+    bandage_img_dir = 'bandage_images'
+    legend_img_dir = 'bandage_images_with_legend'
     
+    Path(colored_gfa_dir).mkdir(parents=True, exist_ok=True)
+    Path(bandage_img_dir).mkdir(parents=True, exist_ok=True)
+    Path(legend_img_dir).mkdir(parents=True, exist_ok=True)
+    
+    # Find all complex sites
+    if workdir:
+        complex_sites = [workdir]
+    else:
+        complex_sites = glob.glob('all_plottables/*')
+    
+    for site_dir in complex_sites:
+        site_name = os.path.basename(site_dir)
+        color_csv_dir = os.path.join(site_dir, 'color_csvs')
+        
+        # Only process the GFA files in the working directory
+        viz_gfa_files = glob.glob(f"{site_dir}/*.gfa")
+        
+        # Process each GFA file with appropriate color files
+        for gfa_file in viz_gfa_files:
+            gfa_base = os.path.basename(gfa_file)
+            region_name = gfa_base.replace('.gfa', '')
+            
+            # Process with different color files
+            for color_type in ['all_colors.csv', 'pc_colors.csv']:
+                color_file = os.path.join(color_csv_dir, color_type)
+                if os.path.exists(color_file):
+                    colored_prefix = f"{color_type.split('.')[0]}_"
+                    colored_gfa = os.path.join(colored_gfa_dir, f"{colored_prefix}{gfa_base}")
+                    
+                    # Run color addition script
+                    add_color_tags(color_file, gfa_file, colored_gfa)
+                    
+                    # Generate Bandage image
+                    output_image = os.path.join(bandage_img_dir, f"{colored_prefix}{gfa_base.replace('.gfa', '.png')}")
+                    bandage_cmd = f"Bandage image {colored_gfa} {output_image} --height 3000 --nodewidth 200 --singlearr --colour custom"
+                    
+                    print(f"Running: {bandage_cmd}")
+                    os.system(bandage_cmd)
+                    
+                    # Create legend from color file
+                    legend_title = f"{site_name} - {'All Genes' if 'all_colors' in color_type else 'Protein Coding Genes'}"
+                    legend_output = os.path.join(legend_img_dir, f"{colored_prefix}{gfa_base.replace('.gfa', '.png')}")
+                    create_legend_image(color_file, output_image, legend_output, legend_title, is_walk=False)
+            
+            # Also process sample walks color files
+            sample_walks_files = glob.glob(os.path.join(color_csv_dir, '*.walks.csv'))
+            for walk_file in sample_walks_files:
+                sample_name = os.path.basename(walk_file).replace('.walks.csv', '')
+                colored_gfa = os.path.join(colored_gfa_dir, f"{sample_name}_{gfa_base}")
+                
+                # Add sample-specific colors
+                add_color_tags(walk_file, gfa_file, colored_gfa)
+                
+                # Generate sample-specific Bandage image
+                output_image = os.path.join(bandage_img_dir, f"{sample_name}_{gfa_base.replace('.gfa', '.png')}")
+                bandage_cmd = f"Bandage image {colored_gfa} {output_image} --height 3000 --nodewidth 200 --singlearr --colour custom"
+                
+                print(f"Running: {bandage_cmd}")
+                os.system(bandage_cmd)
+                
+                # Create legend for walk
+                legend_title = f"{site_name} - Sample {sample_name} Walk"
+                legend_output = os.path.join(legend_img_dir, f"{sample_name}_{gfa_base.replace('.gfa', '.png')}")
+                create_legend_image(walk_file, output_image, legend_output, legend_title, is_walk=True)
+    
+    print(f"Bandage images with legends saved to {legend_img_dir}/")
+
+
+def create_legend_image(color_file, image_path, output_path, title, is_walk=False):
+    """
+    Create a legend for the given color file and add it to the image.
+    
+    Args:
+        color_file: Path to the CSV file with color information
+        image_path: Path to the input image
+        output_path: Path to save the output image with legend
+        title: Title for the image
+        is_walk: Whether this is a walk color file (True) or gene color file (False)
+    """
+    # Build legend dictionary from the color file
+    legend_dict = {}
+    gene_to_color = {}
+    
+    with open(color_file, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+                
+            parts = line.split(',')
+            if len(parts) >= 2:
+                node_id = parts[0].strip()
+                color_hex = parts[1].strip()
+                
+                if is_walk:
+                    # For walks, we'll use a gradient of the same color
+                    sample_name = os.path.basename(color_file).replace('.walks.csv', '')
+                    if color_hex not in legend_dict:
+                        legend_dict[color_hex] = ""#f"Sample {sample_name}"
+                else:
+                    # For genes, extract gene name from directory
+                    gene_dir = os.path.join(os.path.dirname(color_file), 'gene_colors')
+                    if os.path.exists(gene_dir):
+                        gene_files = glob.glob(os.path.join(gene_dir, '*.csv'))
+                        for gene_file in gene_files:
+                            gene_name = os.path.basename(gene_file).replace('.csv', '')
+                            # Check if this node is in the gene's file
+                            with open(gene_file, 'r') as gf:
+                                for gline in gf:
+                                    if node_id in gline:
+                                        parts = gline.split(',')
+                                        if len(parts) >= 2:
+                                            gene_color = parts[1].strip()
+                                            gene_to_color[gene_name] = gene_color
+                                            break
+    
+    # If it's a gene color file, use gene_to_color instead
+    if not is_walk:
+        legend_dict = {color: gene for gene, color in gene_to_color.items()}
+    
+    # Limit legend to a reasonable number of entries
+    if len(legend_dict) > 20:
+        # Take the first 19 entries and add a "..." entry
+        keys = list(legend_dict.keys())[:19]
+        trimmed_dict = {k: legend_dict[k] for k in keys}
+        trimmed_dict["#000000"] = "... and more"
+        legend_dict = trimmed_dict
+    
+    # Open the image
+    image = Image.open(image_path)
+    draw = ImageDraw.Draw(image)
+    
+    # Try to load font
+    try:
+        font = ImageFont.truetype("/usr/share/fonts/dejavu/DejaVuSansMono-Bold.ttf", 48)
+        title_font = ImageFont.truetype("/usr/share/fonts/dejavu/DejaVuSansMono-Bold.ttf", 56)
+    except:
+        # Fall back to default font if the specified font is not available
+        font = ImageFont.load_default()
+        title_font = ImageFont.load_default()
+    
+    # Draw title
+    W, H = image.size
+    title_w, title_h = get_text_dimensions(title, title_font)
+    title_x = (W - title_w) / 2
+    draw.text((title_x, 20), title, fill="black", font=title_font)
+    
+    # Draw legend
+    box_size = 50
+    spacing = 20
+    line_height = box_size + spacing
+    
+    # Position legend in the top-right corner
+    x_start = W - 400
+    y_start = 100
+    
+    for i, (color, label) in enumerate(legend_dict.items()):
+        x0 = x_start
+        y0 = y_start + i * line_height
+        x1 = x0 + box_size
+        y1 = y0 + box_size
+        
+        # Draw color box
+        draw.rectangle([x0, y0, x1, y1], fill=color, outline="black")
+        
+        # Draw label
+        text_x = x1 + spacing
+        text_y = y0
+        draw.text((text_x, text_y), label, fill="black", font=font)
+    
+    # Save the image with legend
+    image.save(output_path)
+    print(f"Added legend to {output_path}")
+
+
+def get_text_dimensions(text, font):
+    """Get the dimensions of a text using the given font."""
+    try:
+        # For newer versions of PIL
+        return font.getbbox(text)[2:4]
+    except AttributeError:
+        try:
+            # For older versions of PIL
+            return font.getsize(text)
+        except:
+            # Fallback method
+            dummy_img = Image.new('RGB', (1, 1))
+            dummy_draw = ImageDraw.Draw(dummy_img)
+            return dummy_draw.textsize(text, font=font)
+
+# Helper function to add color tags to GFA
+def add_color_tags(csv_file, gfa_file, output_file):
+    """
+    Read the CSV file (node_id, color_code), build a color map,
+    then read the GFA, and append CL:z:<color> for matching nodes.
+    """
+    # 1) Build a dictionary from node_id -> color_code
+    color_map = {}
+    with open(csv_file, 'r') as f_csv:
+        for line in f_csv:
+            line = line.strip()
+            if not line:
+                continue
+            # e.g. line might be: "1449372, #4b3710"
+            parts = line.split(',')
+            node_id = parts[0].strip()
+            if len(parts) > 1:
+                # second column is the color (e.g. "#4b3710")
+                color_code = parts[1].strip()
+            else:
+                color_code = "green"  # default color if none provided
+            color_map[node_id] = color_code
+    
+    # 2) Go through GFA, append CL:z:<color_code> for matching lines
+    with open(gfa_file, 'r') as f_gfa, open(output_file, 'w') as f_out:
+        for line in f_gfa:
+            # Lines that define segments start with "S\t" per GFA 1.0
+            if line.startswith('S\t'):
+                columns = line.rstrip('\n').split('\t')
+                node_id = columns[1]
+                # If node_id is in color_map, append the color tag
+                if node_id in color_map:
+                    color = color_map[node_id]
+                    # Append color tag: CL:z:<color>
+                    columns.append(f"CL:Z:{color}")
+                # Rebuild the line
+                line = "\t".join(columns) + "\n"
+            # Write (possibly updated) line to output
+            f_out.write(line)
 
 def main(args):
     run_panscan_complex(
@@ -432,7 +801,20 @@ def main(args):
         args.sep_pattern, 
         args.gff3,
         ref_name=args.ref_name
-            )
+    )
+    
+    # Generate summary DataFrame
+    complex_sites_df = generate_complex_sites_dataframe()
+    complex_sites_df.to_csv('complex_sites_summary.csv', index=False)
+    
+    # Generate Bandage plots if requested
+    if args.plot_complex:
+        plot_complex_sites()
+    
+
+    
+
+
 
 def add_subparser(subparsers):
     parser = subparsers.add_parser("complex", help="Analyze complex loci from a VCF file.")
@@ -450,6 +832,7 @@ def add_subparser(subparsers):
     parser.add_argument("--sites", type=int, default=1, help="Number of complex sites in a region to define it as complex (default: 1).")
     parser.add_argument("--sv", type=int, default=1, help="Number of secondary SVs in a region to define it as complex (default: 1).")
     parser.add_argument("--ref_name", default=None, help="Reference name to use in region queries as present in GAF file (eg. CHM13)(default: None)")
+    parser.add_argument("--plot_complex", action="store_true", help="Generate Bandage plots for complex regions")
     parser.set_defaults(func=main)
 
 
