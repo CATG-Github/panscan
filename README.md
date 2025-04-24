@@ -47,7 +47,7 @@ panscan
 There are 2 parts to this:
 You have to first run 
 ```
-panscan make_dup_mtx gencode.gff3 assemblies.fofn hg38_ref.fa 64
+panscan make_dup_mtx --gencode_gff3 gencode.gff3 --fofn assemblies.fofn --ref_fa hg38_ref.fa --threads 64
 ```
 to produce the gene-duplication matrix from all your assmeblies.
 
@@ -55,7 +55,7 @@ to produce the gene-duplication matrix from all your assmeblies.
 
 Then the second command 
 ```
-panscan gene_dup gene-dup-matrix.csv gene_dup/hprc-matrix.csv gene_dup/cpc-matrix.csv
+panscan gene_dup --csv_file gene-dup-matrix.csv --hprc_file gene_dup/hprc-matrix.csv --cpc_file gene_dup/cpc-matrix.csv 
 ``` 
 takes in your gene duplication matrix, and visualizes the duplications in your data and compares them with the hprc and cpc duplications as well. The plots made are :
  - Duplications per assembly
@@ -65,6 +65,8 @@ takes in your gene duplication matrix, and visualizes the duplications in your d
 **As the HPRC and CPC duplciation matrices have only been shared in HG38, we do not recommend using the comparison plots if you use another reference**
 
 The ```panscan gene_dup``` command will ask you for paths to HPRC and CPC matrices, they are present in the directory you cloned the repo into. Specifically in ```panscan/gene_dup```
+
+To plot an ideogram showing gene duplications use the flag '''--ideogram''' with the command. It also needs the ideo-ip.csv
 
 ## Complex region analyses 
 ### Complex Sites
