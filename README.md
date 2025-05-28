@@ -31,7 +31,7 @@ Bionformatics Tools:
 To install Panscan, run:
 
 ```
-git clone https://github.com/muddinmbru/panscan.git
+git clone https://github.com/CATG-Github/panscan.git
 cd panscan
 pip install .
 ```
