@@ -20,7 +20,7 @@ Bionformatics Tools:
 - [GFABase](https://github.com/mlin/gfabase)
 - [GraphAligner](https://github.com/maickrau/GraphAligner)
 - [Liftoff](https://github.com/agshumate/Liftoff)
-- [Panscan Databases](https://zenodo.org/records/15314528) : bed files generated from [dbSNP](https://www.ncbi.nlm.nih.gov/snp), [1000 Genomes](https://www.internationalgenome.org/home), [gnomAD](https://gnomad.broadinstitute.org), [GME](https://illumina.github.io/NirvanaDocumentation/data-sources/gme), [DGV](https://dgv.tcag.ca/dgv/app/home)
+- [Panscan Zenodo Databases](https://zenodo.org/records/15314528) : bed files generated from [dbSNP](https://www.ncbi.nlm.nih.gov/snp), [1000 Genomes](https://www.internationalgenome.org/home), [gnomAD](https://gnomad.broadinstitute.org), [GME](https://illumina.github.io/NirvanaDocumentation/data-sources/gme), [DGV](https://dgv.tcag.ca/dgv/app/home)
 - [rtg-tools](https://github.com/RealTimeGenomics/rtg-tools)
 - [tabix](https://www.htslib.org/doc/tabix.html)
 - [truvari](https://github.com/ACEnglish/truvari)
@@ -113,7 +113,7 @@ This module identifies novel variants (SNPs, InDels, and SVs) in the input Pange
 panscan find_uniq_variants -i /path/to//panscan/Sample.vcf -t SNP --db ALL --overlap 80 --db-path /path/to/databases --op /path/to/output --debug
 ```
 
-**This function needs the path for the databases to be provided to it**. These databases are present in the **database.tar.gz** present in the [Panscan Database](https://drive.google.com/drive/folders/16O6InjctvIsGSTzroDu2366_wMrTFR3p).
+**This function needs the path for the databases to be provided to it**. These databases are present in the **database.tar.gz** present in the [Panscan Zenodo Database](https://zenodo.org/records/15314528).
 
 ### Novel seq
 This module identifies novel sequences present in Pangenome VCF file1 by comparing SV insertions with those in Pangenome VCF file2 and reports them in FASTA format. Initially, the input VCF files undergo pre-processing, which involves splitting multi-allelic variants into single-allelic ones and decomposing complex variants into indels and SNPs using the "decompose" program from RTG Tools. After pre-processing, the SV insertions in the VCF files are compared using the "truvari bench" command, identifying novel SV insertions in VCF file1. These novel insertions at the same locus are clustered using the CD-HIT program, and the final novel sequence FASTA file is generated.
