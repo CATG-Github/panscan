@@ -42,6 +42,27 @@ After successful installation run the tool with :
 panscan
 ```
 
+This will display the following:
+
+```
+usage: panscan [-h] {complex,preprocess_vcf,novel_seq,find_uniq_variants,make_dup_mtx,gene_dup} ...
+
+Panscan tool to analyze complex loci, perform variant analysis, and gene duplication detection.
+
+positional arguments:
+  {complex,preprocess_vcf,novel_seq,find_uniq_variants,make_dup_mtx,gene_dup}
+                        Available commands
+    complex             Analyze complex loci from a VCF file.
+    preprocess_vcf      Preprocess VCF file by normalizing, decomposing, and merging genotypes.
+    novel_seq           Detect novel sequences from two VCF files.
+    find_uniq_variants  Find unique variants in a VCF file.
+    make_dup_mtx        Generate a duplication matrix based on gene duplication data.
+    gene_dup            Detect gene duplications from a CSV file.
+
+options:
+  -h, --help            show this help message and exit
+```
+
 ## Gene-duplication analyses
 
 There are 2 parts to this:
