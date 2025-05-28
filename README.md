@@ -98,7 +98,7 @@ panscan complex --ref_fasta chm13v2.0.fa --gaf_file chm13_mapped_genes.gaf --sep
 ```
 
 **The gaf files needed for the complex command should be produced by aligning the gene sequences file to your pangenome.** 
-The gene sequence files (and scripts to produce them for other references)  are present in the **complex.tar.gz** file present in the [Panscan Database](https://drive.google.com/drive/folders/16O6InjctvIsGSTzroDu2366_wMrTFR3p).
+The gene sequence files (and scripts to produce them for other references)  are present in the **complex.tar.gz** file present in the [Panscan Complex Region Files](https://drive.google.com/drive/folders/16O6InjctvIsGSTzroDu2366_wMrTFR3p).
 
 
 
