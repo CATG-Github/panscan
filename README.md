@@ -139,8 +139,18 @@ panscan find_uniq_variants -i /path/to//panscan/Sample.vcf -t SNP --db ALL --ove
 This module identifies novel sequences present in Pangenome VCF file1 by comparing SV insertions with those in Pangenome VCF file2 and reports them in FASTA format. Initially, the input VCF files undergo pre-processing, which involves splitting multi-allelic variants into single-allelic ones and decomposing complex variants into indels and SNPs using the "decompose" program from RTG Tools. After pre-processing, the SV insertions in the VCF files are compared using the "truvari bench" command, identifying novel SV insertions in VCF file1. These novel insertions at the same locus are clustered using the CD-HIT program, and the final novel sequence FASTA file is generated.
 
 ```
-panscan novel_seq -i /path/to/panscan/Sample.vcf -r /path/to/panscan/Reference.vcf --genome HG38 -t 4 --dpi 600 --op /path/to/my/output --debug
+panscan novel_seq -i /path/to/panscan/Sample.vcf -r /path/to/panscan/Reference.vcf --genome HG38 -t 4 -dt 2 --dpi 600 --op /path/to/my/output --debug
+```
+As the pre-processing of the HPRC and CPC pangenomes can be very time-consuming, we recommend using the pre-processed VCF files for these references, available on [Zenodo](https://zenodo.org/records/15314528).
+
+```
+panscan novel_seq -i VCF -pRef VCF
 ```
 
-The provided Pangenome VCF files of the APR and CPC-HPRC can be used to be compared with your VCF files as well.
+The default number of threads for RTG decompose is set to 1 (recommended). If you choose to increase the thread count, ensure that your system has sufficient memory to handle the workload.
+ 
+```
+-dt DT, --dt DT       Number of threads for RTG decompose (default: 1).
+```
+
 
