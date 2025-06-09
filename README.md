@@ -73,6 +73,13 @@ to produce the gene-duplication matrix from all your assmeblies.
 
 **Please Note: The gene duplication modules are only compatible with gencode gff3 files**
 
+A sample assembly fofn has been uploaded with the package, it has to follow that format for panscan to use your assemblies. The format is as follows:
+
+```
+/path/to/assembly.fa SAMPLE_ID HAPLOTYPE
+/path/to/assembly.fa SAMPLE_ID HAPLOTYPE
+/path/to/assembly.fa SAMPLE_ID HAPLOTYPE
+```
 Then the second command 
 ```
 panscan gene_dup --csv_file gene-dup-matrix.csv --hprc_file gene_dup/hprc-matrix.csv --cpc_file gene_dup/cpc-matrix.csv 
