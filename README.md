@@ -82,7 +82,7 @@ A sample assembly fofn has been uploaded with the package, it has to follow that
 ```
 Then the second command 
 ```
-panscan gene_dup --csv_file gene-dup-matrix.csv --hprc_file gene_dup/hprc-matrix.csv --cpc_file gene_dup/cpc-matrix.csv 
+panscan gene_dup --csv_file gene-dup-matrix.csv --ip1 gene_dup/hprc-matrix.csv --ip2 gene_dup/cpc-matrix.csv 
 ``` 
 takes in your gene duplication matrix, and visualizes the duplications in your data and compares them with the hprc and cpc duplications as well. The plots made are :
  - Duplications per assembly
