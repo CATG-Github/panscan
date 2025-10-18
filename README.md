@@ -8,23 +8,23 @@ The easiest way to use **PanScan** is with its **Docker** or **Singularity** ima
 ### **Option 1: Docker**
 Pull the latest version:
 ```bash
-docker pull catg/panscan:latest
+docker pull ghcr.io/catg-github/panscan:latest
 ```
 
 Run:
 ```bash
-docker run --rm -it catg/panscan:latest panscan
+docker run --rm -it ghcr.io/catg-github/panscan:latest panscan
 ```
 
 ### **Option 2: Singularity**
 Pull the image:
 ```bash
-singularity pull docker://catg/panscan:latest
+singularity pull ghcr.io/catg-github/panscan:latest
 ```
 
 Run:
 ```bash
-singularity exec panscan_latest.sif panscan
+singularity exec panscan.sif panscan
 ```
 
 You should see:
