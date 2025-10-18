@@ -53,6 +53,7 @@ panscan
 - [Perl](https://www.perl.org/)
 - [Python ≥ 3.7](https://www.python.org/)
 - [R](https://www.r-project.org/)
+- [Java](https://www.java.com/en/)
 
 **Python Packages**
 `argparse, Image, ImageDraw, ImageFont, matplotlib, numpy, os, pandas, pickle, sys`
