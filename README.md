@@ -267,9 +267,9 @@ panscan novel_seq \
 ## 📄 Citation
 If you use **PanScan** in your work, please cite the Zenodo DOI:
 
-👉 [https://zenodo.org/records/17358559](https://doi.org/10.1101/2025.05.01.651685)
+👉 [Balan, B., Hanif, S., Hashmi, M.A., Kumail, M., BinEshaq, S., Al-Yazeedi, T., Tambi, R., Murtaza, M., Jamalalail, B., Elsokary, H. and Obathani, M.A., 2025. PanScan: A tertiary analysis tool for pangenome graph. bioRxiv, pp.2025-05.
+](https://doi.org/10.1101/2025.05.01.651685)
 
-Balan, B., Hanif, S., Hashmi, M.A., Kumail, M., BinEshaq, S., Al-Yazeedi, T., Tambi, R., Murtaza, M., Jamalalail, B., Elsokary, H. and Obathani, M.A., 2025. PanScan: A tertiary analysis tool for pangenome graph. bioRxiv, pp.2025-05.
 
 
 
