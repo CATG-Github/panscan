@@ -82,6 +82,15 @@ BED files derived from [dbSNP](https://www.ncbi.nlm.nih.gov/snp), [1000 Genomes]
 PanScan requires these curated BED databases for identifying **novel variants**, **unique sequence regions**, and for performing **genome annotation** across its analysis modules.  
 The dataset includes preprocessed variant catalogs and **ideogram (karyotype) files**, enabling modules such as `novel_seq`, `find_uniq_variants`, and `gene_dup` to accurately annotate, compare, and visualize genomic features.
 
+### **Database Statistics**
+| Database | Variant Count | Genome Build | Source | Description |
+|-----------|----------------|---------------|----------|--------------|
+| dbSNP | … | GRCh38 | NCBI | Single-nucleotide polymorphisms and short indels |
+| 1000 Genomes | … | GRCh38 | IGSR | Common human variation across populations |
+| gnomAD | … | GRCh38 | Broad Institute | Aggregated variant frequency dataset |
+| GME | … | GRCh38 | Illumina | Middle Eastern genome variant database |
+| DGV | … | GRCh38 | TCAG | Structural variation database |
+
 
 ## Gene-duplication analyses
 
