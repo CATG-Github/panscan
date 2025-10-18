@@ -1,18 +1,66 @@
 # PanScan
-PanScan is a computational tool that offers advanced capabilities for identifying novel sequences, SVs, and repetitive regions. With its ability to annotate duplicate genes and visualize complex genomic landscapes, PanScan provides invaluable insights into genetic diversity.
+PanScan is a computational toolkit for the exploration of **novel sequences, structural variants (SVs), and repetitive regions** in genomic data.  
+It supports **gene duplication annotation**, **complex region visualization**, and provides modules for **variant and sequence comparison**.
 
+## 🚀 Quick Start (Containerized Installation)
+The easiest way to use **PanScan** is with its **Docker** or **Singularity** image, both preloaded with all dependencies.
 
-## Requirements
-Programming Languages:
-- [perl](https://www.perl.org/)
-- [Python >= 3.7](https://www.python.org/)
+### **Option 1: Docker**
+Pull the latest version:
+```bash
+docker pull catg/panscan:latest
+```
+
+Run:
+```bash
+docker run --rm -it catg/panscan:latest panscan
+```
+
+### **Option 2: Singularity**
+Pull the image:
+```bash
+singularity pull docker://catg/panscan:latest
+```
+
+Run:
+```bash
+singularity exec panscan_latest.sif panscan
+```
+
+You should see:
+```
+usage: panscan [-h] {complex,preprocess_vcf,novel_seq,find_uniq_variants,make_dup_mtx,gene_dup} ...
+```
+
+> 💡 *Using Docker or Singularity removes the need to install Perl, Python, R, or other dependencies manually.*
+
+## 🧰 Installation from Source
+If you prefer to install from source:
+
+```bash
+git clone https://github.com/CATG-Github/panscan.git
+cd panscan
+pip install .
+```
+
+Run with:
+```bash
+panscan
+```
+
+## 📦 Requirements (for manual installations)
+**Programming Languages**
+- [Perl](https://www.perl.org/)
+- [Python ≥ 3.7](https://www.python.org/)
 - [R](https://www.r-project.org/)
 
-Packages:
-- Python : argparse, Image, ImageDraw, ImageFont, matplotlib, numpy, os, pandas, pickle, sys
-- perl : Getopt::Long, YAML::XS, Cwd, File::Copy, Exporter
+**Python Packages**
+`argparse, Image, ImageDraw, ImageFont, matplotlib, numpy, os, pandas, pickle, sys`
 
-Bionformatics Tools:
+**Perl Modules**
+`Getopt::Long, YAML::XS, Cwd, File::Copy, Exporter`
+
+**Bioinformatics Tools**
 - [Bandage](https://rrwick.github.io/Bandage)
 - [BCFtools](https://github.com/samtools/bcftools)
 - [bgzip](https://www.htslib.org/doc/bgzip.html)
@@ -20,47 +68,18 @@ Bionformatics Tools:
 - [GFABase](https://github.com/mlin/gfabase)
 - [GraphAligner](https://github.com/maickrau/GraphAligner)
 - [Liftoff](https://github.com/agshumate/Liftoff)
-- [Panscan Zenodo Databases](https://zenodo.org/records/15314528) : bed files generated from [dbSNP](https://www.ncbi.nlm.nih.gov/snp), [1000 Genomes](https://www.internationalgenome.org/home), [gnomAD](https://gnomad.broadinstitute.org), [GME](https://illumina.github.io/NirvanaDocumentation/data-sources/gme), [DGV](https://dgv.tcag.ca/dgv/app/home)
+- [Panscan Zenodo Databases](https://zenodo.org/records/15314528)  
+  BED files derived from [dbSNP](https://www.ncbi.nlm.nih.gov/snp), [1000 Genomes](https://www.internationalgenome.org/home), [gnomAD](https://gnomad.broadinstitute.org), [GME](https://illumina.github.io/NirvanaDocumentation/data-sources/gme), and [DGV](https://dgv.tcag.ca/dgv/app/home)
 - [rtg-tools](https://github.com/RealTimeGenomics/rtg-tools)
 - [tabix](https://www.htslib.org/doc/tabix.html)
 - [truvari](https://github.com/ACEnglish/truvari)
-- [Rideogram](https://cran.r-project.org/web/packages/RIdeogram/vignettes/RIdeogram.html) 
+- [RIdeogram](https://cran.r-project.org/web/packages/RIdeogram/vignettes/RIdeogram.html)
 
 
-## Installation
-To install Panscan, run:
 
-```
-git clone https://github.com/CATG-Github/panscan.git
-cd panscan
-pip install .
-```
-
-After successful installation run the tool with :
-
-```
-panscan
-```
-
-This will display the following:
-
-```
-usage: panscan [-h] {complex,preprocess_vcf,novel_seq,find_uniq_variants,make_dup_mtx,gene_dup} ...
-
-Panscan tool to analyze complex loci, perform variant analysis, and gene duplication detection.
-
-positional arguments:
-  {complex,preprocess_vcf,novel_seq,find_uniq_variants,make_dup_mtx,gene_dup}
-                        Available commands
-    complex             Analyze complex loci from a VCF file.
-    novel_seq           Detect novel sequences from two VCF files.
-    find_uniq_variants  Find unique variants in a VCF file.
-    make_dup_mtx        Generate a duplication matrix based on gene duplication data.
-    gene_dup            Detect gene duplications from a CSV file.
-
-options:
-  -h, --help            show this help message and exit
-```
+## 📄 Citation
+If you use **PanScan** in your work, please cite the Zenodo DOI:  
+👉 [https://zenodo.org/records/15314528](https://zenodo.org/records/15314528)
 
 ## Gene-duplication analyses
 
