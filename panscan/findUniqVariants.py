@@ -49,14 +49,16 @@ def run_find_uniq_variants(vcf, var_type, pbsv, db, overlap, op, db_path, debug)
         cmd.extend(["-op", op])
     if db_path:
         # Pass the provided db-path flag.
-        cmd.extend(["-db-path", db_path])
+        cmd.extend(["-db_path", db_path])
     
     if debug:
         print("Command to execute:", " ".join(cmd))
     
     # Set the working directory to the Perl script's "scripts" folder so that config.yaml and modules are found.
     cwd = os.path.join(script_dir, "scripts")
+    calldir = os.getcwd()
     env = os.environ.copy()
+    env["PANSCAN_CALLDIR"] = calldir
     # Add the scripts directory to PERL5LIB so that Perl locates its modules.
     env["PERL5LIB"] = cwd + ":" + env.get("PERL5LIB", "")
     if debug:
@@ -66,7 +68,7 @@ def run_find_uniq_variants(vcf, var_type, pbsv, db, overlap, op, db_path, debug)
 
 def main(args):
     run_find_uniq_variants(
-        args.vcf, args.var_type, args.pbsv, args.db, args.overlap,
+        args.vcf, args.var_type, args.pbsv, args.db, args.ol,
         args.op, args.db_path, args.debug
     )
 
@@ -84,10 +86,10 @@ For SNP: dbSNP, gnomAD, 1000Genomes, GME.
 For INDEL: GNOMAD_INDEL, 1000Genome_INDEL, GME_INDEL.
 For SV: 1000Genome_SV_DEL, DGV_SV_DEL.
 Default: ALL""")
-    parser.add_argument("-overlap", "--overlap", type=int, default=80,
+    parser.add_argument("--ol", "--overlap", type=int, default=80,
                         help="Specify the percentage of overlap for SV comparison (default: 80).")
-    parser.add_argument("--op", help="Output directory")
-    parser.add_argument("--db-path", help="Optional base directory for databases. Overrides the paths in config.yaml if provided.")
+    parser.add_argument("-o", "--op", help="Output directory")
+    parser.add_argument("--db_path", help="Optional base directory for databases. Overrides the paths in config.yaml if provided.")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode to print diagnostic messages.")
     parser.set_defaults(func=main)
 

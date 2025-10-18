@@ -1,5 +1,13 @@
 #!/usr/bin/perl -w
 use strict;
+use File::Copy;
+use lib '.';
+use FindBin qw($Bin);
+use lib "$Bin";  
+use lib "$Bin/perlModules";
+use Getopt::Long;
+
+use perlModules::panscan qw(preprocessVCF mergeGT cleanUp print_novel_seq_help extractSVIns extractNovelInsertions clusterNovelIns getSVsampleInfo generateIdeogram runTruvari chrSplitVcf mergeTruvariVcfs);
 
 #BEGIN#######################################################
 # Version:   1.0
@@ -10,150 +18,161 @@ use strict;
 #          comparing it with VCF file2.
 # External modules used:
 # Notes:
-#    1.) To execute :
-#        perl findNovelSeq.pl sample1.vcf
-#    2.) Prerequisite : https://samtools.github.io/bcftools/bcftools.html
-#                       https://github.com/RealTimeGenomics/rtg-tools
-#			https://www.htslib.org/doc/bgzip.html
-#			https://www.htslib.org/doc/tabix.html
-#			https://github.com/ACEnglish/truvari
-#			https://sites.google.com/view/cd-hit
+#    To execute :
+#        perl findNovelSeq.pl ( provides the complete arguments )
 ##############################################################
+#       Modification Block
+# Number #   Author    Change Description.      Date     Version
+# 1.    Dr.Bipin Balan Implemented threading   9/04/2025 1.0
+#
+#########################################################END#
 
-#!/usr/bin/perl -w
-#!/usr/bin/perl -w
-use strict;
-use FindBin;
-use lib "$FindBin::Bin";
-use File::Copy;
-use YAML::XS 'LoadFile';
-use Getopt::Long;
-use Cwd qw(getcwd abs_path);
-use perlModules::panscan qw(preprocessVCF mergeGT cleanUp print_novel_seq_help extractSVIns extractNovelInsertions clusterNovelIns getSVsampleInfo generateIdeogram runTruvari chrSplitVcf mergeTruvariVcfs);
 
-# Specify the path to the config file relative to the script directory.
-my $script_dir = $FindBin::Bin;
-my $config_file = "$script_dir/config.yaml";
+# Retrieve the paths of the tools from the config file
+my $truvari = 'truvari';
+my $bgzip = 'bgzip';
+my $tabix = 'tabix';
+my $cdhit_est = 'cdhit_est';
+my $Rscript = 'Rscript';
 
-if (! -e $config_file) {
-    die("Config file '$config_file' not found.\n");
-}
-
-my $cfg = LoadFile($config_file);
-if (!$cfg) {
-    die("Failed to read YAML file: $config_file\n");
-}
-
-# Retrieve tool paths from config file.
-my $truvari   = $cfg->{tools}->{truvari};
-my $bgzip     = $cfg->{tools}->{bgzip};
-my $tabix     = $cfg->{tools}->{tabix};
-my $cdhit_est = $cfg->{tools}->{cdhit_est};
-my $Rscript   = $cfg->{tools}->{Rscript};
-
-# Variable declarations.
-my $infile1 = undef;
-my $infile2 = undef;
-my $pInfile1 = undef;
-my $pInfile2 = undef;
-my $threads = 1;
-my $dthreads = 1;
+# Variable Declaration #
+my $infile1 = undef; # Input vcf file #
+my $infile2 = undef; # Input refernce vcf file #
+my $pInfile1 = undef; # Input pre-processed vcf file #
+my $pInfile2 = undef; # Input pre-processed refernce vcf file #
+my $threads = 1; # Number of Threads #
+my $dthreads = 1; # Number of Threads for RTG decompose #
+my $db_path = 'NA';
 my $excludeSample = 'NA';
-my $dpi = 600;
-my $genome = 'HG38';
+my $dpi = 600; # dpi for Ideogram figure #
+my $genome = 'NA';
 my $help = undef;
-my $output = '';   # New output directory flag.
 
 GetOptions(
-    'i=s'       => \$infile1,
-    'r=s'       => \$infile2,
-    't=i'       => \$threads,
-    'dt=i'      => \$dthreads,
-    'dpi=i'     => \$dpi,
-    'pInp=s'    => \$pInfile1,
-    'pRef=s'    => \$pInfile2,
-    'exclude=s' => \$excludeSample,
-    'genome=s'  => \$genome,
-    'op=s'      => \$output,  # New output option.
-    'help'      => \$help
+        'i=s'   => \$infile1,
+        'r=s'   => \$infile2,
+        't=i'  => \$threads,
+        'dt=i'  => \$dthreads,
+        'db_path=s'  => \$db_path,
+        'dpi=i'  => \$dpi,
+	'pInp=s' => \$pInfile1,
+	'pRef=s' => \$pInfile2,
+	'exclude=s' => \$excludeSample,
+        'help'      => \$help
 ) or die "Error in command line arguments\n";
 
-# Determine the result folder.
-my $resultfolder;
-if ($output) {
-    $resultfolder = abs_path($output) or die "Cannot resolve output directory: $output\n";
-    mkdir $resultfolder unless (-d $resultfolder);
-} else {
-    $resultfolder = 'NovelSeq_Results';
-    mkdir $resultfolder unless (-d $resultfolder);
+
+# Print warning message #
+if($dthreads>1)
+{
+	print "WARNING !! Please make sure the system/server is having enogh memory to run RTG decompose !!\n";
 }
 
-my $karyo = "$cfg->{databases}->{dbpath}/HG38_karyotype.bed";
-if ($genome eq 'CHM13') {
-    $karyo = "$cfg->{databases}->{dbpath}/CHM13_karyotype.bed";
-}
 
-if ($dthreads > 1) {
-    print "WARNING !! Please make sure the system/server has enough memory to run RTG decompose !!\n";
-}
-
-if ($help) {
+# Print the help message #
+if ($help)
+{
     print_novel_seq_help();
     exit;
 }
 
-if((!defined($infile1)) && (!defined($pInfile1))) {
-    print "\nERROR: Please provide input pangenome VCF file !!\n\n";
-    print_novel_seq_help();
-    exit;
+if($db_path eq 'NA')
+{
+        print "ERROR: Please mention the pangenome database path !! \n";
+        print_novel_seq_help();
+        exit;
 }
 
-if((!defined($infile2)) && (!defined($pInfile2))) {
-    print "\nERROR: Please provide reference pangenome VCF file to compare !!\n\n";
-    print_novel_seq_help();
-    exit;
+
+if( (!(defined($infile1))) && (!(defined($pInfile1))) )
+{
+        print "\nERROR : Please provide input pangenome vcf file !! \n\n";
+        print_novel_seq_help();
+        exit;
 }
+
+if( (!(defined($infile2))) && (!(defined($pInfile2))) )
+{
+        print "\nERROR : Please provide refernce pangenome vcf file to compare !! \n\n";
+        print_novel_seq_help();
+        exit;
+}
+
+my $karyo = "$db_path\/karyotype.bed";
 
 my $tmpFolder = 'tmp_novel_seq';
-if (-d $tmpFolder) {
-    cleanUp($tmpFolder);
-    mkdir $tmpFolder;
-} else {
-    mkdir $tmpFolder;
+if(-d $tmpFolder)
+{
+	&cleanUp($tmpFolder);
+	mkdir $tmpFolder;
+}
+else
+{
+	mkdir $tmpFolder;
 }
 
-# Pre-processing of the VCF files.
+my $resultfolder = 'NovelSeq_Results';
+if(-d $resultfolder)
+{
+        my $prefix = (split'\_',$resultfolder,-1)[-1];
+        my $fNo = 0;
+        if($prefix eq 'Results')
+        {
+                $fNo=1;
+        }
+        elsif($prefix=~/^\d$/gi)
+        {
+                $fNo=$prefix+1;
+        }
+        $resultfolder = "NovelSeq_Results\_$fNo";
+        mkdir $resultfolder;
+}
+else
+{
+        mkdir $resultfolder;
+}
+
+# Pre-processing of the VCF files #
 my $ppvcf1 = '';
 my $ppvcf2 = '';
 my %ExcludeSamples = ();
-if ($excludeSample ne 'NA') {
-    foreach my $eachSamples (split /,/, $excludeSample, -1) {
-        $ExcludeSamples{$eachSamples} = 0;
-    }
+if($excludeSample ne 'NA')
+{
+	foreach my $eachSamples(split'\,',$excludeSample,-1)
+	{
+		$ExcludeSamples{$eachSamples} = 0;
+	}
 }
-if (defined($pInfile1)) {
-    my $sample = (split /_/, (split /\./, (split /\//, $pInfile1)[-1], -1)[0], -1)[0];
-    my $resultfile = "$tmpFolder/${sample}_preprocessed.vcf";
-    $ppvcf1 = mergeGT($pInfile1, $resultfile, \%ExcludeSamples);
-} else {
-    $ppvcf1 = preprocessVCF($cfg, $infile1, $threads, $tmpFolder, $dthreads, \%ExcludeSamples);
+if(defined($pInfile1))
+{
+	my $sample = (split'\_',(split'\.',(split'\/',$pInfile1)[-1],-1)[0],-1)[0];
+	my $resultfile = "$tmpFolder\/$sample\_preprocessed.vcf";
+	$ppvcf1 = &mergeGT($pInfile1,$resultfile,\%ExcludeSamples);
 }
-if (defined($pInfile2)) {
-    my $sample = (split /_/, (split /\./, (split /\//, $pInfile2)[-1], -1)[0], -1)[0];
-    my $resultfile = "$tmpFolder/${sample}_preprocessed.vcf";
-    $ppvcf2 = mergeGT($pInfile2, $resultfile, \%ExcludeSamples);
-} else {
-    $ppvcf2 = preprocessVCF($cfg, $infile2, $threads, $tmpFolder, $dthreads, \%ExcludeSamples);
+else
+{
+	$ppvcf1 = &preprocessVCF($infile1,$threads,$tmpFolder,$dthreads,\%ExcludeSamples);
+}
+if(defined($pInfile2))
+{
+	my $sample = (split'\_',(split'\.',(split'\/',$pInfile2)[-1],-1)[0],-1)[0];
+	my $resultfile = "$tmpFolder\/$sample\_preprocessed.vcf";
+	$ppvcf2 = &mergeGT($pInfile2,$resultfile,\%ExcludeSamples);
+}
+else
+{
+	$ppvcf2 = &preprocessVCF($infile2,$threads,$tmpFolder,$dthreads,\%ExcludeSamples);
 }
 
-# Extract SV Insertions.
-my $InsSV1 = extractSVIns($ppvcf1, $tmpFolder, $bgzip, $tabix);
-my $NovelSampleFile = getSVsampleInfo($InsSV1, $tmpFolder);
-my $InsSV2 = extractSVIns($ppvcf2, $tmpFolder, $bgzip, $tabix);
+# Extract SV Insertions #
+my $InsSV1 = &extractSVIns($ppvcf1,$tmpFolder,$bgzip,$tabix);
+my $NovelSampleFile = &getSVsampleInfo($InsSV1,$tmpFolder,\%ExcludeSamples);
+my $InsSV2 = &extractSVIns($ppvcf2,$tmpFolder,$bgzip,$tabix);
 
-# Comparison of the VCFs using Truvari bench command.
-runTruvari($InsSV1, $InsSV2, $tmpFolder, $threads, $truvari, $bgzip, $tabix);
-extractNovelInsertions($tmpFolder, $resultfolder, $NovelSampleFile, $karyo, $Rscript, $dpi, $threads, $cdhit_est);
+# Comparison of the VCFs using Truvari bench command #
+&runTruvari($InsSV1,$InsSV2,$tmpFolder,$threads,$truvari,$bgzip,$tabix);
+&extractNovelInsertions($tmpFolder,$resultfolder,$NovelSampleFile,$karyo,$Rscript,$dpi,$threads,$cdhit_est,\%ExcludeSamples);
 
-cleanUp($tmpFolder);
+# Removing temp folders #
+&cleanUp($tmpFolder);
 exit;

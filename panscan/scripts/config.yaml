@@ -1,7 +1,13 @@
 ## Absolute path of the tools ##
 tools:
-  bcftools : /usr/local/bin/bcftools
-  rtg : /mnt/h700/omixlab/packages/bipin_packages/miniconda3/bin/rtg
+  bcftools : bcftools
+  rtg : rtg
+  truvari : truvari
+  bgzip : bgzip
+  tabix : tabix
+  cdhit_est : cd-hit
+  Rscript : Rscript
+
 
 databases:
   dbSNP : databases/DBSNP_SNP.txt

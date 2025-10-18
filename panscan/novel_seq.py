@@ -2,7 +2,7 @@ import argparse
 import subprocess
 import os
 
-def run_novel_seq(infile, ref, threads, dthreads, dpi, pInp, pRef, exclude, genome, output, debug):
+def run_novel_seq(infile, ref, threads, dthreads, dpi, pInp, pRef, exclude,  debug, db_path):
     # Convert provided paths to absolute paths.
     if infile:
         infile = os.path.abspath(infile)
@@ -12,8 +12,10 @@ def run_novel_seq(infile, ref, threads, dthreads, dpi, pInp, pRef, exclude, geno
         pInp = os.path.abspath(pInp)
     if pRef:
         pRef = os.path.abspath(pRef)
-    if output:
-        output = os.path.abspath(output)
+    #if output:
+    #    output = os.path.abspath(output)
+    if db_path:
+        db_path = os.path.abspath(db_path)
     
     if debug:
         print("Input VCF (raw or preprocessed):", infile if infile else pInp)
@@ -22,8 +24,9 @@ def run_novel_seq(infile, ref, threads, dthreads, dpi, pInp, pRef, exclude, geno
         print("RTG decompose threads:", dthreads)
         print("DPI:", dpi)
         print("Exclude:", exclude)
-        print("Genome:", genome)
-        print("Output directory:", output if output else "(default NovelSeq_Results)")
+        #print("Genome:", genome)
+        print("DB path:", db_path if db_path else "(none)")
+        #print("Output directory:", output if output else "(default NovelSeq_Results)")
     
     # Determine the directory of this Python file (i.e. where the package is installed)
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -43,8 +46,7 @@ def run_novel_seq(infile, ref, threads, dthreads, dpi, pInp, pRef, exclude, geno
            "-t", str(threads),
            "-dt", str(dthreads),
            "-dpi", str(dpi),
-           "-exclude", exclude,
-           "-genome", genome]
+           "-exclude", exclude]
     
     # For input VCF: either raw (--vcf) or preprocessed (--pInp) must be provided.
     if pInp and infile:
@@ -67,9 +69,12 @@ def run_novel_seq(infile, ref, threads, dthreads, dpi, pInp, pRef, exclude, geno
         raise ValueError("Please provide a reference VCF file (--ref or --pRef).")
     
     # Add output directory flag if provided.
-    if output:
-        cmd.extend(["-op", output])
-    
+    #if output:
+    #    cmd.extend(["-op", output])
+
+    if db_path:
+        cmd.extend(["-db_path", db_path])
+
     if debug:
         print("Command to execute:", " ".join(cmd))
     
@@ -78,7 +83,7 @@ def run_novel_seq(infile, ref, threads, dthreads, dpi, pInp, pRef, exclude, geno
 
 def main(args):
     run_novel_seq(args.vcf, args.ref, args.threads, args.dt, args.dpi,
-                  args.pInp, args.pRef, args.exclude, args.genome, args.op, args.debug)
+                  args.pInp, args.pRef, args.exclude,  args.debug, args.db_path)
 
 def add_subparser(subparsers):
     parser = subparsers.add_parser("novel_seq", help="Generate a novel sequence FASTA from your VCF file by comparing with reference pangenome VCF.")
@@ -108,11 +113,12 @@ def add_subparser(subparsers):
     )
 
     parser.add_argument("-t", "--threads", type=int, default=1, help="Number of threads (default: 1).")
-    parser.add_argument("-dt", "--dt", type=int, default=1, help="Number of threads for RTG decompose (default: 1).")
+    parser.add_argument("--dt", "--rtg-threads", type=int, default=1, help="Number of threads for RTG decompose (default: 1).")
     parser.add_argument("-dpi", "--dpi", type=int, default=600, help="DPI for ideogram figure (default: 600).")
     parser.add_argument("-exclude", "--exclude", default="NA", help="Samples to exclude (default: NA).")
-    parser.add_argument("-genome", "--genome", default="HG38", help="Genome version (HG38 or CHM13; default: HG38).")
-    parser.add_argument("--op", help="Optional output directory. If not provided, the tool uses its default ('NovelSeq_Results').")
+    #parser.add_argument("-genome", "--genome", default="HG38", help="Genome version (HG38 or CHM13; default: HG38).")
+    parser.add_argument("--db_path", metavar="DIR", help="Path to database directory used by the Perl scripts.")
+    #parser.add_argument("-o", "--op", default="NovelSeq_Results", help="Optional output directory. If not provided, the tool uses its default ('NovelSeq_Results').")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode with diagnostic messages.")
     parser.set_defaults(func=main)
 

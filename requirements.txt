@@ -1,11 +1,8 @@
-Python >= 3.7
-perl
-Matplotlib
-pandas
-liftoff
-cd-hit
-rtg-tools
-truvari
-GFABase
-GraphAligner
-Panscan Databases
+Operating system(s): Linux or macOS (not compatible with Windows)
+Programming language: Python, Perl, R, Java
+Languages & Libraries:
+Python ≥3.7 (packages: argparse, matplotlib, numpy, pandas, pickle)
+Perl (modules: Getopt::Long, Cwd, File::Copy, Exporter)
+R (used for visualization, e.g., karyotype plots)
+Java Runtime Environment (for executing reciprocal_overlap.class)
+Third-party tools: Liftoff, GraphAligner, GFABase, Bandage, BCFtools, bgzip, tabix, RTG Tools, truvari, CD-HIT-EST, Rideogram

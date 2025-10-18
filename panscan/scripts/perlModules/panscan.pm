@@ -6,7 +6,8 @@ use Cwd;
 use Exporter 'import';
 use Parallel::ForkManager;
 
-our @EXPORT_OK = qw(preprocessVCF mergeGT cleanUp print_novel_seq_help print_uniq_var_help generateInput compareSNPDB compareINDELDB generateInputSV compareSVINS parseSVINS compareSVDEL parseSVDEL extractSVIns extractNovelInsertions clusterNovelIns getSVsampleInfo generateIdeogram runTruvari chrSplitVcf mergeTruvariVcfs);
+
+our @EXPORT_OK = qw(preprocessVCF mergeGT cleanUp print_novel_seq_help print_uniq_var_help generateInput compareSNPDB compareINDELDB generateInputSV compareSV extractSVIns extractNovelInsertions clusterNovelIns getSVsampleInfo generateIdeogram runTruvari chrSplitVcf mergeTruvariVcfs);
 
 
 sub cleanUp
@@ -36,6 +37,7 @@ print <<EOF;
         --r FILE       Specify the reference pangenome vcf file to compare.
         --pInp FILE    Specify the pre-processed input pangenome vcf file. 
         --pRef FILE    Specify the pre-processed reference pangenome vcf file to compare.
+        --db_path FILE Specify the PanScan databsae folder path (CHM13/GRCh38).
         --exclude LIST Specify the sample/s to be excluded (',' separated)
         --t NUMBER     Specify the number of threads required.
 			default : 1
@@ -45,13 +47,10 @@ print <<EOF;
 				     having enough memory )
 	--dpi          Specify the dpi of the Ideogram image.
 			default : 600
-	--genome       Specify reference genome ( HG38 or CHM13 )
-			default : HG38
         --help         Display this help message.
 
 EOF
 }
-
 
 sub print_uniq_var_help
 {
@@ -63,12 +62,12 @@ print <<EOF;
 	--pbsv         If input is pbsv vcf file for SV comparison.
 		        default : off
         --t TEXT       Specify the variant type to compare (SNP/INDEL/SV).
+        --db_path PATH Specify the PanScan database folder path.
         --db FILE      Specify the databases ( ',' sepearted for multiple databases ).
                        Available databases for
-                                        SNP   : dbSNP,gnomAD,1000Genomes,GME
-                                        InDel : gnomAD,1000Genomes,GME
-                                        SV insertion    : DGV
-                                        SV deletion     : DGV,1000Genomes
+                                        SNP   : dbSNP,gnomAD,1000Genomes,HGSVC,GME
+                                        InDel : dbSNP,gnomAD,1000Genomes,HGSVC,GME
+                                        SV    : dbSNP,gnomAD,1000Genomes,HGSVC,DGV
 				default : ALL
         --overlap NUMBER     Specify the percentage of overlap for the SV comparison.
 			default : 80
@@ -80,7 +79,6 @@ EOF
 sub preprocessVCF
 {
 	# Specify the path to the config file
-	my $cfg = shift;
 	my $infile = shift;
 	my $threads = shift;
 	my $tmp_folder = shift;
@@ -93,8 +91,8 @@ sub preprocessVCF
 	my $resultfile3 = "$tmp_folder\/$sample\_preprocessed.vcf";
 
 	# Retrieve the paths of the tools from the config file
-	my $bcftools = $cfg->{tools}->{bcftools};
-	my $rtg = $cfg->{tools}->{rtg};
+	my $bcftools = 'bcftools';
+	my $rtg = 'rtg';
 
 	# Covert to single allelic #
 	my $status = 0;
@@ -188,6 +186,22 @@ sub mergeGT
 				next;
 			}
 		}
+	
+		# Skip the variant, if not present in any of the samples #
+		my $totGT = 0;
+		for(my $i=9;$i<=$#data;$i++)
+		{
+			foreach my $eachGT(split'\D',$data[$i],-1)
+			{
+				$eachGT = 0 if($eachGT=~/^\s*$/);
+				$totGT+=$eachGT;
+			}
+		}
+		if($totGT==0)
+		{
+			next;
+		}
+
 		my $chr = $data[0];
 		unless(defined($Chrs{$chr}))
 		{
@@ -495,7 +509,10 @@ sub generateInput
 	open OUT1,">$resultfile1" or die "Can't open $resultfile1 for writing\n";
 	open OUT2,">$resultfile2" or die "Can't open $resultfile2 for writing\n";
 	open OUT3,">$resultfile3" or die "Can't open $resultfile3 for writing\n";
+	print OUT3 "Total SVs\tSV Insertions\tSV Deletions\n";
 	my $totSVs = 0;
+	my $totIns = 0;
+	my $totDel = 0;
 	while(<IN>)
 	{
 		chomp;
@@ -538,26 +555,33 @@ sub generateInput
 					{
 						$chr = 23;
 					}
-					if($chr eq 'Y')
+					elsif($chr eq 'Y')
 					{
 						$chr = 24;
+					}
+					elsif($chr eq 'M')
+					{
+						$chr = 25;
 					}
 					if($diff>0)
 					{
 						$totSVs++;
-						my $end = $pos+$diff;
+						my $end = $pos+1;
 						print OUT1 "$chr\t$pos\t$end\n";
+						$totIns++;
 					}
 					else
 					{
 						$totSVs++;
 						my $end = $pos+abs($diff);
 						print OUT2 "$chr\t$pos\t$end\n";
+						$totDel++;
 					}
 				}
 			}
 		}
 	}
+	print OUT3 "$totSVs\t$totIns\t$totDel\n";
 	close IN; # Closing the filehandler #
 	close OUT;
 	close OUT1;
@@ -573,9 +597,48 @@ sub generateInput
 	}
 	else
 	{
-		unlink $resultfile3;
-		return($totSVs,$resultfile1,$resultfile2,$resultfile3);
+		unlink $resultfile;
+		my $mapfile1 = &generateSVMap($resultfile1,$resfolder);
+		my $mapfile2 = &generateSVMap($resultfile2,$resfolder);
+		return($totSVs,$resultfile1,$resultfile2,$mapfile1,$mapfile2);
 	}
+}
+
+sub generateSVMap
+{
+	my $infile = shift;
+	my $resultfolder = shift;
+	my $svtype = (split'\_',(split'\.',(split'\/',$infile,-1)[-1],-1)[0],-1)[-1];
+
+	my $tmpResultfile = "$resultfolder\/SV\_$svtype\_TMP.txt";
+	my $resultfile = "$resultfolder\/SV\_$svtype\_MAP.txt";
+
+	my %uniqPos = ();
+	open IN,"<$infile" or die "Can't open $infile for reading\n";
+	open TMP,">$tmpResultfile" or die "Can't open $tmpResultfile for writing\n";
+	while(<IN>)
+	{
+		chomp;
+		next if(/^\s*$/);
+		unless(defined($uniqPos{$_}))
+		{
+			print TMP "$_\n";
+		}
+		$uniqPos{$_}++;
+	}
+	close IN;
+	close TMP;
+
+	unlink($infile);
+	rename($tmpResultfile,$infile) or die "Could not rename file: $tmpResultfile\n";
+
+	open OUT,">$resultfile" or die "Can't open $resultfile for writing\n";
+	foreach my $eachRec(sort{$a cmp $b;} keys %uniqPos)
+	{
+		print OUT "$eachRec\t".$uniqPos{$eachRec}."\n";
+	}
+	close OUT;
+	return $resultfile;
 }
 
 sub compareSNPDB
@@ -786,9 +849,13 @@ sub generateInputSV
 			{
 				$chr = 23;
 			}
-			if($chr eq 'Y')
+			elsif($chr eq 'Y')
 			{
 				$chr = 24;
+			}
+			elsif($chr eq 'M')
+			{
+				$chr = 25;
 			}
 			
 			if($SVType eq 'INS')
@@ -872,78 +939,12 @@ sub generateInputSV
 	{
 		unlink $resultfile4;
 	}
-	return ($totSVs,$resultfile1,$resultfile2,$resultfile3,$resultfile4);
+	my $mapfile1 = &generateSVMap($resultfile1,$resFolder);
+	my $mapfile2 = &generateSVMap($resultfile2,$resFolder);
+	return ($totSVs,$resultfile1,$resultfile2,$resultfile3,$resultfile4,$mapfile1,$mapfile2);
 }
 
-sub compareSVINS
-{
-	my $infile = shift;
-	my $tmpfolder = shift;
-	my $resultfolder = shift;
-	my $svOverlap = shift;
-	my $cfg = shift;
-
-	my $DGV_SV_INS = "$cfg->{databases}->{dbpath}/DGV_SV_INS.txt";
-	my $resultfile = "$tmpfolder\/After-comparison-with-DGV_Final-Unique-SVs.txt";
-	my $retval = system("java $cfg->{classes}->{reciprocal_overlap} $infile $DGV_SV_INS $svOverlap > $resultfile");
-	if($retval==0)
-	{
-		&parseSVINS($resultfile,$resultfolder);
-		print "SV insertion comparison completed !!\n";
-	}
-	else
-	{
-		print "Problem in the reciprocal overlap\n";
-		exit;
-	}
-}
-
-sub parseSVINS
-{
-	my $infile = shift;
-	my $resultfolder = shift;
-	my $percentage = shift;
-
-	my $resultfile1 = "$resultfolder\/After-comparison-with-DGV_Final-Unique-SV-Insertions.txt";
-	my $resultfile2 = "$resultfolder\/SV-Insetion_Comparison_Stat.txt";
-
-	my $total = 0;
-	my $common = 0;
-	my $unique = 0;
-
-	open OUT1,">$resultfile1" or die "Can't open $resultfile1 for writng\n";
-	open IN,"<$infile" or die "Can't open $infile for reading\n";
-	while(<IN>)
-	{
-		chomp;
-		next if(/^\s*$/);
-		$total++;
-		my @data = split"\t",$_,-1;
-
-		if($data[1]>0)
-		{
-			$common++;
-		}
-		elsif($data[1]==0)
-		{
-			my($chr,$cord) = split'\:',$data[0],-1;
-			my($cord1,$cord2) = split'\-',$cord,-1;
-			$chr=~tr/Chr//d;
-			print OUT1 "$chr\t$cord1\t$cord2\n";
-			$unique++;
-		}
-	}
-	close IN;
-	close OUT1;
-
-	open OUT2,">$resultfile2" or die "Can't open $resultfile2 for writng\n";
-	print OUT2 "Total insertions\tCommon insertions\tUnique insertions\n";
-	print OUT2 "$total\t$common\t$unique\n";
-	print OUT2 "\n\nTotal Novel SV Insertions : $unique\n";
-	close OUT2;
-}
-
-sub compareSVDEL
+sub compareSV
 {
 	my $infile = shift;
 	my $tmpfolder = shift;
@@ -951,7 +952,21 @@ sub compareSVDEL
 	my $svOverlap = shift;
 	my $refDBorder = shift;
 	my $refDBs = shift;
-	my $cfg = shift;
+	my $db_path = shift;
+	my $svType = shift;
+	my $mapFile = shift;
+
+	# Reading Count from Map File #
+	my %freqInfo = ();
+	open IN,"<$mapFile" or die "Can't open $mapFile for reading\n";
+	while(<IN>)
+	{
+		chomp;
+		next if(/^\s*$/);
+		my @data = split"\t",$_,-1;
+		$freqInfo{"$data[0]\t$data[1]\t$data[2]"} = $data[3];
+	}
+	close IN;
 
 	my $totalDBs = scalar(@$refDBorder);
 	my $no = 1;
@@ -960,28 +975,33 @@ sub compareSVDEL
 	{
 		my $dbfile = $$refDBs{$eachDb};
 		my $resultfile = '';
-		$resultfile = "$tmpfolder\/After-comparison-with\-$eachDb\-SV-Deletions.txt";
+		$resultfile = "$tmpfolder\/After-comparison-with\-$eachDb\-SV\-$svType\.txt";
 		if($no==$totalDBs)
 		{
-			$resultfile = "$tmpfolder\/After-comparison-with\-$eachDb\_Final-Unique-SV-Deletions.txt";
+			$resultfile = "$tmpfolder\/After-comparison-with\-$eachDb\_Final-Unique-SV\-$svType\.txt";
+			unlink $resultfile;
 		}
 		
 		my $retval = 'NA';
 
 		if($no==1)
 		{
-			$retval = system("java $cfg->{classes}->{reciprocal_overlap} $infile $dbfile $svOverlap > $resultfile");
+			$retval = system("java -cp /opt/conda/envs/panscan/lib/python3.11/site-packages/panscan/scripts/perlModules/ reciprocal_overlap $infile $dbfile $svOverlap > $resultfile");
+			unlink $infile;
 		}
 		else
 		{
-			$retval = system("java $cfg->{classes}->{reciprocal_overlap} $retFile $dbfile $svOverlap > $resultfile");
+			$retval = system("java -cp /opt/conda/envs/panscan/lib/python3.11/site-packages/panscan/scripts/perlModules/ reciprocal_overlap $retFile $dbfile $svOverlap > $resultfile");
+			unlink $retFile;
 		}
+
 		if($retval==0)
 		{
-			$retFile = &parseSVDEL($resultfile,$resultfolder,$eachDb,$totalDBs,$no);
+			$retFile = &parseSVResult($resultfile,$resultfolder,$eachDb,$totalDBs,$no,$svType,\%freqInfo);
 			if($no==$totalDBs)
 			{
-				print "SV Deletion comparison completed !!\n";
+				unlink $retFile;
+				print "SV $svType comparison completed !!\n";
 			}
 		}
 		else
@@ -993,20 +1013,22 @@ sub compareSVDEL
 	}
 }
 
-sub parseSVDEL
+sub parseSVResult
 {
 	my $infile = shift;
 	my $resultfolder = shift;
 	my $db = shift;
 	my $totalDB = shift;
 	my $N = shift;
+	my $SvType = shift;
+	my $refFreqInfo = shift;
 
-	my $resultfile1 = "$resultfolder\/After-comparison-with\-$db\_SV-Deletions.txt";
+	my $resultfile1 = "$resultfolder\/After-comparison-with\-$db\_SV\-$SvType\.txt";
 	if($N==$totalDB)
 	{
-		$resultfile1 = "$resultfolder\/After-comparison-with\-$db\_Final-Unique-SV-Deletions.txt";
+		$resultfile1 = "$resultfolder\/After-comparison-with\-$db\_Final-Unique-SV\-$SvType\.txt";
 	}
-	my $resultfile2 = "$resultfolder\/SV-Deletion_Comparison_Stat.txt";
+	my $resultfile2 = "$resultfolder\/SV\-$SvType\_Comparison_Stat.txt";
 
 	my $total = 0;
 	my $common = 0;
@@ -1018,20 +1040,24 @@ sub parseSVDEL
 	{
 		chomp;
 		next if(/^\s*$/);
-		$total++;
 		my @data = split"\t",$_,-1;
-
+		my($chr,$cord) = split'\:',$data[0],-1;
+		my($cord1,$cord2) = split'\-',$cord,-1;
+		$chr=~tr/Chr//d;
+		my $SV_count = 0;
+		if(defined($$refFreqInfo{"$chr\t$cord1\t$cord2"}))
+		{
+			$SV_count = $$refFreqInfo{"$chr\t$cord1\t$cord2"};
+		}
+		$total+=$SV_count;
 		if($data[1]>0)
 		{
-			$common++;
+			$common+=$SV_count;
 		}
 		elsif($data[1]==0)
 		{
-			my($chr,$cord) = split'\:',$data[0],-1;
-			my($cord1,$cord2) = split'\-',$cord,-1;
-			$chr=~tr/Chr//d;
 			print OUT1 "$chr\t$cord1\t$cord2\n";
-			$unique++;
+			$unique+=$SV_count;
 		}
 	}
 	close IN;
@@ -1040,7 +1066,7 @@ sub parseSVDEL
 	if($N==1)
 	{
 		open OUT2,">$resultfile2" or die "Can't open $resultfile2 for writng\n";
-		print OUT2 "Database\tTotal deletions\tCommon deletions\tUnique deletions\n";
+		print OUT2 "Database\tTotal $SvType\tCommon $SvType\tUnique $SvType\n";
 	}
 	else
 	{
@@ -1050,10 +1076,9 @@ sub parseSVDEL
 	print OUT2 "$db\t$total\t$common\t$unique\n";
 	if($N==$totalDB)
         {
-                print OUT2 "\n\nTotal Novel SV Deletions : $unique\n";
+                print OUT2 "\n\nTotal Novel SV $SvType : $unique\n";
         }
 	close OUT2;
-
 	return $resultfile1;
 }
 
@@ -1128,6 +1153,7 @@ sub extractNovelInsertions
 	my $dpi = shift;
 	my $threads = shift;
 	my $cdhit_est = shift;
+	my $refExcludeSamples = shift;
 	
 	my $infile = "$tmpfolder\/fp.vcf";
 	my $resultfile = "$tmpfolder\/Novel_Insertions.fa";
@@ -1151,7 +1177,7 @@ sub extractNovelInsertions
 	close OUT;
 	print "Total number of sequences before clustering : $novelSeqNo\n";
 	
-	&clusterNovelIns($resultfile,$tmpfolder,$resfolder,$sampleInfofile,$karyo,$Rscript,$dpi,$threads,$cdhit_est);
+	&clusterNovelIns($resultfile,$tmpfolder,$resfolder,$sampleInfofile,$karyo,$Rscript,$dpi,$threads,$cdhit_est,$refExcludeSamples);
 }
 
 sub clusterNovelIns
@@ -1165,6 +1191,7 @@ sub clusterNovelIns
 	my $dpi = shift;
 	my $threads = shift;
 	my $cdhit_est = shift;
+	my $refExcludeSamples = shift;
 	
 	my %chrInfo = ("chr1",1,"chr2",2,"chr3",3,"chr4",4,"chr5",5,"chr6",6,"chr7",7,"chr8",8,"chr9",9,"chr10",10,"chr11",11,"chr12",12,"chr13",13,"chr14",14,"chr15",15,"chr16",16,"chr17",17,"chr18",18,"chr19",19,"chr20",20,"chr21",21,"chr22",22,"chrM",'M',"chrX",'X',"chrY",'Y');
 	
@@ -1321,6 +1348,7 @@ sub clusterNovelIns
 			print OUT4 "$header\t".$Sinfo{$seq}."\n";
 			foreach my $eachSample(split'\,',(split"\t",$Sinfo{$seq},-1)[-1],-1)
 			{
+				next if(defined($$refExcludeSamples{$eachSample}));
 				$SampleNoveSeqCnt{$eachSample}++;
 			}
 		}
@@ -1333,9 +1361,10 @@ sub clusterNovelIns
 
 	open OUT5,">$summaryfile1" or die "Can't open $summaryfile1 for writing\n";
 	print OUT5 "Sample\tTotal Number of Novel Sequences\n";
-	foreach my $eachSampes(sort{$SampleNoveSeqCnt{$b}<=>$SampleNoveSeqCnt{$a};} keys %SampleNoveSeqCnt)
+	foreach my $eachSamples(sort{$SampleNoveSeqCnt{$b}<=>$SampleNoveSeqCnt{$a};} keys %SampleNoveSeqCnt)
 	{
-		print OUT5 "$eachSampes\t".$SampleNoveSeqCnt{$eachSampes}."\n";
+		next if(defined($$refExcludeSamples{$eachSamples}));
+		print OUT5 "$eachSamples\t".$SampleNoveSeqCnt{$eachSamples}."\n";
 	}
 	close OUT5;
 
@@ -1358,6 +1387,8 @@ sub getSVsampleInfo
 {
         my $infile = shift;
 	my $tmpFolder = shift;
+	my $refExcludeSamples = shift;
+
         my @samples = ();
 	$infile=~s/\.gz$//;
 
@@ -1394,13 +1425,19 @@ sub getSVsampleInfo
                         $h2=0 if($h2 eq '.');
                         if( ($h1>0) || ($h2>0))
                         {
-                                push(@novelSamples,$samples[$i]);
+				if(!defined($$refExcludeSamples{$samples[$i]}))
+				{
+					push(@novelSamples,$samples[$i]);
+				}
                         }
                 }
                 my $totSamples = scalar(@novelSamples);
                 my $novelSampleList = join',',@novelSamples;
 		my $insLen = length($data[4]);
-                print OUT "$data[0]\t$data[1]\t$data[4]\t$insLen\t$totSamples\t$novelSampleList\n";
+		if($totSamples>0)
+		{
+			print OUT "$data[0]\t$data[1]\t$data[4]\t$insLen\t$totSamples\t$novelSampleList\n";
+		}
         }
         close IN;
 	return $resultfile;
@@ -1464,7 +1501,7 @@ setwd("$currdir\/$path")
 require(RIdeogram)
 human_karyotype <-read.table(\"$karyotype\", sep = \"\\t\", header = T, stringsAsFactors = F)
 novel_info <-read.table(\"$inpIdeogram\", sep = \"\\t\", header = T, stringsAsFactors = F)
-ideogram(karyotype=human_karyotype,synteny = NULL,label = NULL,label_type = NULL, overlaid = novel_info, colorset1 = c("#FFFFFF", "#D30808", "#D30808"), output = "NovelSeq_Ideogram.svg", width=200,Lx=10000)
+ideogram(karyotype=human_karyotype,synteny = NULL,label = NULL,label_type = NULL, overlaid = novel_info, colorset1 = c("#FFFFFF", "#D30808", "#D30808"), output = "NovelSeq_Ideogram.svg", width=150,Lx=10000)
 svg2tiff("NovelSeq_Ideogram.svg",file = "$resfile", height=5.4,width=7,dpi=$dpi)
 file.remove("NovelSeq_Ideogram.svg")
 file.remove("Rplots.pdf")

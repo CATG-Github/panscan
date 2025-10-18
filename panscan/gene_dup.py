@@ -6,43 +6,154 @@ import sys
 import os
 import tempfile
 import uuid
+import matplotlib.pyplot as plt
+import pandas as pd
+import math
+from matplotlib_venn import venn3
 
+MAX_RENDERER_PIXELS = (2**16 - 256)  # renderer hard cap
+
+
+def _safe_square_figure(base_dpi=100, target_in=8, max_in=20):
+    """
+    Return (fig_w, fig_h, dpi) for a square figure that won't exceed the renderer cap.
+    """
+    w_in = min(target_in, max_in)
+    dpi_cap = int(MAX_RENDERER_PIXELS / max(w_in, 1e-6))
+    dpi = max(80, min(base_dpi, dpi_cap))
+    return w_in, w_in, dpi
+
+
+def plot_gene_dup_venn(genes_main, label_main, genes_ip1, label_ip1, genes_ip2, label_ip2,
+                       *, out_png, out_svg=None):
+    """
+    genes_* are sets of gene IDs (row index). Labels are strings.
+    """
+    fig_w, fig_h, dpi = _safe_square_figure(base_dpi=150, target_in=8, max_in=18)
+
+    fig = plt.figure(figsize=(fig_w, fig_h), dpi=dpi)
+    v = venn3([genes_main, genes_ip1, genes_ip2],
+              set_labels=(label_main, label_ip1, label_ip2))
+
+    # Title
+    plt.title("Gene Duplication Venn Diagram", fontsize=18, fontweight="bold", pad=25)
+
+    # Style the set labels (A, B, C labels)
+    for label in v.set_labels:
+        if label:
+            label.set_fontsize(14)
+            label.set_fontweight("bold")
+
+    # Style the subset labels (numbers)
+    for label in v.subset_labels:
+        if label:
+            label.set_fontsize(12)
+            label.set_fontweight("normal")
+
+    # Make axis labels bold, if they exist
+    plt.xlabel("X-axis", fontsize=12, fontweight="bold")  # optional
+    plt.ylabel("Y-axis", fontsize=12, fontweight="bold")  # optional
+
+    try:
+        plt.tight_layout()
+    except Exception:
+        pass
+
+    fig.savefig(out_png, dpi=dpi, bbox_inches="tight")
+    if out_svg:
+        fig.savefig(out_svg, bbox_inches="tight")
+    plt.close(fig)
+
+
+
+def _safe_bar_figure(n_bars,
+                     base_dpi=100,
+                     min_width_in=40,
+                     max_width_in=300,
+                     inches_per_bar=0.25,
+                     height_in=30):
+    """
+    Compute a figsize + dpi that won’t exceed renderer pixel cap.
+    """
+    desired_w_in = max(min_width_in, min(max_width_in, n_bars * inches_per_bar))
+    dpi_cap = int(MAX_RENDERER_PIXELS / max(desired_w_in, 1e-6))
+    dpi = max(50, min(base_dpi, dpi_cap))
+    return desired_w_in, height_in, dpi
+
+def _thin_xticks(ax, n_bars, target_labels=100):
+    """
+    Show at most ~target_labels x-tick labels.
+    """
+    if n_bars <= target_labels:
+        return
+    step = max(1, math.ceil(n_bars / target_labels))
+    for i, label in enumerate(ax.get_xticklabels()):
+        label.set_visible((i % step) == 0)
 
 def process_and_plot_data(csv_file, cohort_name):
-    # Read the input file
+    # Read input
     result_df = pd.read_csv(csv_file, index_col=0)
 
-    # Count non-zero values (duplicated genes per genome)
+    # Count duplicated genes per genome
     duplicates_count = (result_df != 0).sum().sort_values()
-
-    # Dynamically adjust figure size based on the number of bars
     num_bars = len(duplicates_count)
-    fig_width = max(20, num_bars * 5)
-    fig_height = 30
 
-    import matplotlib.pyplot as plt
-    plt.figure(figsize=(fig_width, fig_height))
+    # Safe figure sizing
+    fig_w, fig_h, dpi = _safe_bar_figure(num_bars)
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h), dpi=dpi)
 
+    # Font scaling
     base_font_size = 40
-    adjusted_font_size = max(30, min(base_font_size, 2000 / num_bars))
-    plt.rcParams.update({'font.size': adjusted_font_size})
+    adjusted_font_size = max(18, min(base_font_size, 1600 / max(num_bars, 1)))
 
-    padding_factor = 1.5
+    # Plot
+    duplicates_count.plot(kind='bar',
+                          width=0.2,
+                          color='#1F1F6A',
+                          edgecolor='black',
+                          ax=ax)
 
-    # Plot with thinner bars
-    duplicates_count.plot(kind='bar', width=0.2, color='#1F1F6A', edgecolor='black')
+    # Labels
+    ax.set_xlabel(
+        f'Genome by number of duplications ({cohort_name})',
+        fontsize=adjusted_font_size,
+        labelpad=adjusted_font_size * 1.2,
+        weight='bold'
+    )
+    ax.set_ylabel(
+        'Duplicated genes per genome',
+        fontsize=adjusted_font_size,
+        labelpad=adjusted_font_size * 1.2,
+        weight='bold'
+    )
 
-    plt.xlabel(f'Genome by number of duplications ({cohort_name})',
-               fontsize=adjusted_font_size,
-               labelpad=adjusted_font_size * padding_factor, weight='bold')
-    plt.ylabel('Duplicated genes per genome', fontsize=adjusted_font_size,
-               labelpad=adjusted_font_size * padding_factor, weight='bold')
-    plt.xticks(rotation=45, ha='right', fontsize=adjusted_font_size * 0.8)
-    plt.yticks(fontsize=adjusted_font_size * 0.8)
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.tight_layout()
-    plt.savefig('dup-per-hap.png', dpi=100)
-    plt.show()
+    # Tick styling
+    for lbl in ax.get_xticklabels():
+        lbl.set_rotation(45)
+        lbl.set_ha('right')
+        lbl.set_fontsize(adjusted_font_size * 0.8)
+    _thin_xticks(ax, num_bars)
+
+    for lbl in ax.get_yticklabels():
+        lbl.set_fontsize(adjusted_font_size * 0.8)
+
+    # Grid + margins
+    ax.grid(axis='y', linestyle='--', alpha=0.7)
+    ax.margins(x=0.01)
+
+    # Layout guardrail
+    try:
+        plt.tight_layout()
+    except Exception:
+        pass
+
+    # Save outputs
+    fig.savefig('dup-per-hap.png', dpi=dpi, bbox_inches='tight')
+    if (fig_w * dpi) >= (0.9 * MAX_RENDERER_PIXELS) or num_bars > 2000:
+        fig.savefig('dup-per-hap.svg', bbox_inches='tight')
+
+    plt.close(fig)
+
 
 
 def frequency_comparison(df1, df2, output_file, cohort_label, data_label, color1, color2, top_n):
@@ -138,6 +249,15 @@ def run_gene_dup(args):
                          args.cohort_name, args.ip1_label, "#1F1F6A", "#E63946", args.top_n)
     frequency_comparison(df_main, ip2_df, f"freq_{args.ip2_label}.png",
                          args.cohort_name, args.ip2_label, "#1F1F6A", "#2ECC71", args.top_n)
+    
+    g_main = set(df_main.index)
+    g_ip1  = set(ip1_df.index)
+    g_ip2  = set(ip2_df.index)
+
+    venn_png = f"venn_{args.cohort_name}_{args.ip1_label}_{args.ip2_label}.png"
+    venn_svg = f"venn_{args.cohort_name}_{args.ip1_label}_{args.ip2_label}.svg"
+    plot_gene_dup_venn(g_main, args.cohort_name, g_ip1, args.ip1_label, g_ip2, args.ip2_label,
+                       out_png=venn_png, out_svg=venn_svg)
 
     # Ideogram
     if args.ideogram:
