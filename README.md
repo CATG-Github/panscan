@@ -76,7 +76,7 @@ panscan
 
 ## **Required Databases**
 [Panscan Zenodo Databases](https://zenodo.org/records/17358559)  
-BED files derived from [dbSNP](https://www.ncbi.nlm.nih.gov/snp), [1000 Genomes](https://www.internationalgenome.org/home), [gnomAD](https://gnomad.broadinstitute.org), [GME](https://illumina.github.io/NirvanaDocumentation/data-sources/gme), and [DGV](https://dgv.tcag.ca/dgv/app/home)
+BED files derived from [dbSNP](https://www.ncbi.nlm.nih.gov/snp), [1000 Genomes](https://www.internationalgenome.org/home), [gnomAD](https://gnomad.broadinstitute.org), [GME](https://illumina.github.io/NirvanaDocumentation/data-sources/gme), [HGSVC](https://www.internationalgenome.org/data-portal/data-collection/hgsvc3) and [DGV](https://dgv.tcag.ca/dgv/app/home)
 
 **Description:**  
 PanScan requires these curated BED databases for identifying **novel variants**, **unique sequence regions**, and for performing **genome annotation** across its analysis modules.  
