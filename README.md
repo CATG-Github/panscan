@@ -58,7 +58,7 @@ panscan
 `argparse, Image, ImageDraw, ImageFont, matplotlib, numpy, os, pandas, pickle, sys`
 
 **Perl Modules**
-`Getopt::Long, YAML::XS, Cwd, File::Copy, Exporter`
+`Getopt::Long,  Cwd, File::Copy, Exporter`
 
 **Bioinformatics Tools**
 - [Bandage](https://rrwick.github.io/Bandage)
@@ -68,18 +68,19 @@ panscan
 - [GFABase](https://github.com/mlin/gfabase)
 - [GraphAligner](https://github.com/maickrau/GraphAligner)
 - [Liftoff](https://github.com/agshumate/Liftoff)
-- [Panscan Zenodo Databases](https://zenodo.org/records/17358559)  
-  BED files derived from [dbSNP](https://www.ncbi.nlm.nih.gov/snp), [1000 Genomes](https://www.internationalgenome.org/home), [gnomAD](https://gnomad.broadinstitute.org), [GME](https://illumina.github.io/NirvanaDocumentation/data-sources/gme), and [DGV](https://dgv.tcag.ca/dgv/app/home)
 - [rtg-tools](https://github.com/RealTimeGenomics/rtg-tools)
 - [tabix](https://www.htslib.org/doc/tabix.html)
 - [truvari](https://github.com/ACEnglish/truvari)
 - [RIdeogram](https://cran.r-project.org/web/packages/RIdeogram/vignettes/RIdeogram.html)
 
+## **Required Databases**
+[Panscan Zenodo Databases](https://zenodo.org/records/17358559)  
+BED files derived from [dbSNP](https://www.ncbi.nlm.nih.gov/snp), [1000 Genomes](https://www.internationalgenome.org/home), [gnomAD](https://gnomad.broadinstitute.org), [GME](https://illumina.github.io/NirvanaDocumentation/data-sources/gme), and [DGV](https://dgv.tcag.ca/dgv/app/home)
 
+**Description:**  
+PanScan requires these curated BED databases for identifying **novel variants**, **unique sequence regions**, and for performing **genome annotation** across its analysis modules.  
+The dataset includes preprocessed variant catalogs and **ideogram (karyotype) files**, enabling modules such as `novel_seq`, `find_uniq_variants`, and `gene_dup` to accurately annotate, compare, and visualize genomic features.
 
-## 📄 Citation
-If you use **PanScan** in your work, please cite the Zenodo DOI:  
-👉 [https://zenodo.org/records/17358559](https://zenodo.org/records/17358559)
 
 ## Gene-duplication analyses
 
@@ -236,7 +237,7 @@ panscan novel_seq \
   -i /path/to/query.vcf \
   -r /path/to/reference.vcf \
   --exclude GRCh38 \
-  --db-path /path/to/panscan_db \
+  --db_path /path/to/panscan_db \
   -t 16 \
   --dt 1 \
   --dpi 600
@@ -249,19 +250,25 @@ panscan novel_seq \
   -pInp /path/to/preprocessed_query.vcf \
   -pRef /path/to/preprocessed_reference.vcf \
   --exclude GRCh38 \
-  --db-path /path/to/panscan_db \
+  --db_path /path/to/panscan_db \
   -t 16 \
   --dt 1 \
   --dpi 600
 ```
 
 #### Notes
-- The `--db-path` argument **must** point to a valid directory containing `karyotype.bed` [Present in databases.tar in [Zenodo](https://zenodo.org/records/17358559)].  
+- The `--db_path` argument **must** point to a valid directory containing `karyotype.bed` [Present in databases.tar in [Zenodo](https://zenodo.org/records/17358559)].  
 - If the output folder `NovelSeq_Results` already exists, the program automatically increments the folder name.  
 - Preprocessing large pangenome VCFs (like HPRC or CPC) can be time-consuming. Use preprocessed VCFs from [Zenodo](https://zenodo.org/records/17358559) when available.  
 - The default number of threads for the decomposition step is set to `1` (recommended). Increasing this value requires sufficient system memory.
 
 
+## 📄 Citation
+If you use **PanScan** in your work, please cite the Zenodo DOI:
+
+👉 [https://zenodo.org/records/17358559](https://doi.org/10.1101/2025.05.01.651685)
+
+Balan, B., Hanif, S., Hashmi, M.A., Kumail, M., BinEshaq, S., Al-Yazeedi, T., Tambi, R., Murtaza, M., Jamalalail, B., Elsokary, H. and Obathani, M.A., 2025. PanScan: A tertiary analysis tool for pangenome graph. bioRxiv, pp.2025-05.
 
 
 
