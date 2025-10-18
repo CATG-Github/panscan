@@ -83,13 +83,16 @@ PanScan requires these curated BED databases for identifying **novel variants**,
 The dataset includes preprocessed variant catalogs and **ideogram (karyotype) files**, enabling modules such as `novel_seq`, `find_uniq_variants`, and `gene_dup` to accurately annotate, compare, and visualize genomic features.
 
 ### **Database Statistics**
-| Database | Variant Count | Genome Build | Source | Description |
-|-----------|----------------|---------------|----------|--------------|
-| dbSNP | … | GRCh38 | NCBI | Single-nucleotide polymorphisms and short indels |
-| 1000 Genomes | … | GRCh38 | IGSR | Common human variation across populations |
-| gnomAD | … | GRCh38 | Broad Institute | Aggregated variant frequency dataset |
-| GME | … | GRCh38 | Illumina | Middle Eastern genome variant database |
-| DGV | … | GRCh38 | TCAG | Structural variation database |
+
+| Database | HG38 SNP | HG38 INDEL | HG38 SV INS | HG38 SV DEL | CHM13 SNP | CHM13 INDEL | CHM13 SV INS | CHM13 SV DEL |
+|-----------|-----------|-------------|--------------|--------------|-------------|---------------|---------------|---------------|
+| 1000 Genomes | 73,159,508 | 4,962,747 | 168 | 40,975 | 72,888,529 | 4,856,707 | 162 | 36,295 |
+| GME | 677,157 | 10,508 | — | — | 676,401 | 10,428 | — | — |
+| gnomAD | 565,523,876 | 71,991,101 | 265,579 | 608,341 | 563,330,245 | 69,474,194 | 242,218 | 465,322 |
+| dbSNP | 1,243,982,940 | 145,594,743 | 292,856 | 674,039 | 1,210,796,960 | 139,873,724 | 265,069 | 515,459 |
+| HGSVC | 23,379,532 | 6,165,268 | 88,981 | 60,739 | 23,924,545 | 6,298,545 | 89,664 | 77,783 |
+| DGV | — | — | 115,716 | 325,504 | — | — | 108,615 | 265,497 |
+
 
 
 ## Gene-duplication analyses
