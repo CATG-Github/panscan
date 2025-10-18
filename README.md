@@ -1,5 +1,5 @@
 # PanScan
-PanScan is a computational toolkit for the exploration of **novel sequences, structural variants (SVs), and repetitive regions** in genomic data.  
+PanScan is a computational toolkit for the exploration of **gene duplications, novel sequences and complex structural variants (SVs)** .  
 It supports **gene duplication annotation**, **complex region visualization**, and provides modules for **variant and sequence comparison**.
 
 ## 🚀 Quick Start (Containerized Installation)
