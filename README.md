@@ -187,7 +187,7 @@ For all modules in this section you can use the Sample.vcf file provided in the 
 
 ###  Novel Variant Identification 
 
-This module identifies **novel variants** — including **SNPs**, **InDels**, and **SVs** — in the input Pangenome VCF by comparing them against public databases such as **dbSNP**, **gnomAD**, **1000 Genomes**, **GME**, and **DGV**.
+This module identifies **novel variants** — including **SNPs**, **InDels**, and **SVs** — in the input Pangenome VCF by comparing them against public databases such as **dbSNP**, **gnomAD**, **1000 Genomes**, **GME**, **HGSVC** and **DGV**.
 
 #### **Usage**
 ```bash
