@@ -6,7 +6,7 @@ It supports **gene duplication annotation**, **complex region visualization**, a
 The easiest way to use **PanScan** is with its **Docker** or **Singularity** image, both preloaded with all dependencies.
 
 
-### **Option 1: Singularity**
+### **Option 1: Singularity (Recommended)**
 Pull the image:
 ```bash
 wget https://github.com/CATG-Github/panscan/releases/download/v1.5/panscan.sif
