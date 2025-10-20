@@ -5,21 +5,11 @@ It supports **gene duplication annotation**, **complex region visualization**, a
 ## 🚀 Quick Start (Containerized Installation)
 The easiest way to use **PanScan** is with its **Docker** or **Singularity** image, both preloaded with all dependencies.
 
-### **Option 1: Docker**
-Pull the latest version:
-```bash
-docker pull ghcr.io/catg-github/panscan:latest
-```
 
-Run:
-```bash
-docker run --rm -it ghcr.io/catg-github/panscan:latest panscan
-```
-
-### **Option 2: Singularity**
+### **Option 1: Singularity**
 Pull the image:
 ```bash
-singularity pull ghcr.io/catg-github/panscan:latest
+wget https://github.com/CATG-Github/panscan/releases/download/v1.5/panscan.sif
 ```
 
 Run:
@@ -30,6 +20,18 @@ singularity exec panscan.sif panscan
 You should see:
 ```
 usage: panscan [-h] {complex,preprocess_vcf,novel_seq,find_uniq_variants,make_dup_mtx,gene_dup} ...
+```
+
+
+### **Option 2: Docker**
+Pull the latest version:
+```bash
+docker pull ghcr.io/catg-github/panscan:latest
+```
+
+Run:
+```bash
+docker run --rm -it ghcr.io/catg-github/panscan:latest panscan
 ```
 
 > 💡 *Using Docker or Singularity removes the need to install Perl, Python, R, or other dependencies manually.*
