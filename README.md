@@ -77,7 +77,7 @@ panscan
 - [RIdeogram](https://cran.r-project.org/web/packages/RIdeogram/vignettes/RIdeogram.html)
 
 ## **Required Databases**
-[Panscan Zenodo Databases](https://zenodo.org/records/17358559)  
+[Panscan Zenodo Databases](https://zenodo.org/records/18656901)  
 BED files derived from [dbSNP](https://www.ncbi.nlm.nih.gov/snp), [1000 Genomes](https://www.internationalgenome.org/home), [gnomAD](https://gnomad.broadinstitute.org), [GME](https://illumina.github.io/NirvanaDocumentation/data-sources/gme), [HGSVC](https://www.internationalgenome.org/data-portal/data-collection/hgsvc3) and [DGV](https://dgv.tcag.ca/dgv/app/home)
 
 **Description:**  
@@ -221,7 +221,7 @@ panscan find_uniq_variants \
 
 #### **Notes**
 - Each run automatically creates a unique result folder (e.g. `SV_Comparison_Result`, `SV_Comparison_Result_1`, …) in the specified output directory to avoid overwriting previous results.  
-- The `--db_path` argument **must point to the decompressed database directory**, available in the [`Panscan Zenodo Database`](https://zenodo.org/records/17358559) (`database.tar.gz`).  
+- The `--db_path` argument **must point to the decompressed database directory**, available in the [`Panscan Zenodo Database`](https://zenodo.org/records/18656901) (`database.tar.gz`).  
 - When executed inside a Singularity container, all output and temporary files are written to the **calling directory** or the path specified via `--outdir` — never inside the container image.
 
 
@@ -272,9 +272,9 @@ panscan novel_seq \
 ```
 
 #### Notes
-- The `--db_path` argument **must** point to a valid directory containing `karyotype.bed` [Present in databases.tar in [Zenodo](https://zenodo.org/records/17358559)].  
+- The `--db_path` argument **must** point to a valid directory containing `karyotype.bed` [Present in databases.tar in [Zenodo](https://zenodo.org/records/18656901)].  
 - If the output folder `NovelSeq_Results` already exists, the program automatically increments the folder name.  
-- Preprocessing large pangenome VCFs (like HPRC or CPC) can be time-consuming. Use preprocessed VCFs from [Zenodo](https://zenodo.org/records/17358559) when available.  
+- Preprocessing large pangenome VCFs (like HPRC or CPC) can be time-consuming. Use preprocessed VCFs from [Zenodo](https://zenodo.org/records/18656901) when available.  
 - The default number of threads for the decomposition step is set to `1` (recommended). Increasing this value requires sufficient system memory.
 
 
