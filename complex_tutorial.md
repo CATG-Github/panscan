@@ -103,7 +103,7 @@ fi
 **UPR-definition (default, stricter):**
 
 ```bash
-python complex.py complex \
+panscan complex \
     pangenome_complete.vcf \
     pangenome_complete.gfab \
     --gff3 annotation.gff3 \
@@ -119,7 +119,7 @@ python complex.py complex \
 **HPRC-style (relaxed, for comparison with published loci):**
 
 ```bash
-python complex.py complex \
+panscan complex \
     pangenome_complete.vcf \
     pangenome_complete.gfab \
     --gff3 annotation.gff3 \
@@ -167,7 +167,7 @@ Bandage is a single-threaded application that loads the entire graph into memory
 - `--plot_threads` to **no more than 8–10** regardless of how many CPUs your job has allocated. More parallel Bandage workers does not improve throughput — it causes memory contention, I/O saturation, and crashes.
 
 ```bash
-python complex.py complex \
+panscan complex \
     ... \
     --threads 64 \
     --plot_threads 8 \
@@ -247,7 +247,7 @@ if [[ ! -f "pangenome_complete.vcf" ]]; then
 fi
 
 # Step 5 — run complex module (HPRC-style relaxed settings)
-python complex.py complex \
+panscan complex \
     pangenome_complete.vcf \
     pangenome_complete.gfab \
     --gff3 annotation.gff3 \
