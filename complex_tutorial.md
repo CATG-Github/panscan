@@ -8,7 +8,7 @@ The `complex` module identifies and visualizes complex structural variant loci i
 
 ## Defining a Complex SV Locus
 
-As per the UPR (Unified Pangenome Reference) paper definition, a complex SV locus is defined as a genomic window containing **at least one top-level graph bubble (snarl) with a minimum allele size of 10,000bp and a minimum of 5 alternate alleles**. This reflects regions where multiple large, structurally distinct haplotypes co-exist in the population.
+As per the UPR ([UAE Pangenome Reference](https://www.nature.com/articles/s41467-025-61645-w)) paper definition, a complex SV locus is defined as a genomic window containing **at least one top-level graph bubble (snarl) with a minimum allele size of 10,000bp and a minimum of 5 alternate alleles**. This reflects regions where multiple large, structurally distinct haplotypes co-exist in the population.
 
 For reproducibility and direct comparison with HPRC-style analyses (following the methodology of the [HPRC draft pangenome paper](https://www.nature.com/articles/s41586-023-05896-x)), users can run with relaxed settings that lower the allele size threshold to 5,000bp (selected by the HPRC authors based on manual inspection of Bandage plots) and reduce the minimum allele count to 1. This will identify a broader set of structurally complex regions and allow direct comparison with HPRC published loci. See the parameter table and example commands below.
 
@@ -24,7 +24,7 @@ Required inputs:
 |---|---|
 | `pangenome_complete.gfa(.gz)` | Pangenome graph in GFA format (from Minigraph-Cactus) |
 | `pangenome_complete.gfab` | Indexed GFA database (built from GFA, see Step 2) |
-| `pangenome_complete.vcf(.gz)` | Pangenome VCF (from `vg deconstruct`) |
+| `pangenome_complete.vcf(.gz)` | Pangenome VCF |
 | `genes.fa` | Gene sequences in FASTA (from Ensembl) |
 | `annotation.gff3` | Gene annotation file (from Ensembl/Gencode) |
 
@@ -85,7 +85,6 @@ singularity exec -B /mnt:/mnt --no-home panscan.sif \
     -a genes_vs_pangenome.gaf \
     -x vg \
     --multimap-score-fraction 0.1 \
-    --try-all-seeds \
     --threads 32
 ```
 
