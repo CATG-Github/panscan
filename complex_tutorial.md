@@ -237,7 +237,7 @@ if [[ ! -f "genes_vs_pangenome.gaf" ]]; then
         -g pangenome_complete.gfa \
         -f genes.fa \
         -a genes_vs_pangenome.gaf \
-        -x vg --multimap-score-fraction 0.1 --try-all-seeds \
+        -x vg --multimap-score-fraction 0.1 \
         --threads ${THREADS}
 fi
 
