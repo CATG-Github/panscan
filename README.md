@@ -256,6 +256,7 @@ panscan novel_seq \
   -r /path/to/reference.vcf \
   --exclude GRCh38 \
   --db_path /path/to/panscan_db \
+  --outdir /path/to/output \
   -t 16 \
   --dt 1 \
   --dpi 600
@@ -269,9 +270,10 @@ panscan novel_seq \
   -pRef /path/to/preprocessed_reference.vcf \
   --exclude GRCh38 \
   --db_path /path/to/panscan_db \
+  --outdir /path/to/output \
   -t 16 \
   --dt 1 \
-  --dpi 600
+  --dpi 600 
 ```
 
 #### Notes
