@@ -289,3 +289,115 @@ Building the `.gfab` index is a one-time operation per pangenome. Approximate ru
 - HPRC v2: ~1.5 hours
 
 Plan accordingly and do not include this step in time-sensitive job allocations.
+
+
+## Example Output — RHD/RHCE Locus (chr1:25,104,001-25,204,001)
+
+The RHD/RHCE locus on chromosome 1 encodes the Rhesus blood group antigens 
+and is one of the most structurally complex regions in the human genome. 
+It contains two highly homologous genes (RHD and RHCE) arranged in tandem, 
+separated by TMEM50A, and flanked by RSRP1. The high sequence similarity 
+between RHD and RHCE makes this locus prone to gene conversion, inversion, 
+and copy number variation — producing a diverse set of structural haplotypes 
+across human populations.
+
+This region was selected as a benchmark because it was independently analyzed 
+in the HPRC draft pangenome paper, allowing direct 
+comparison of panscan outputs with published results.
+
+---
+
+### Color scheme
+
+In all walk plots below:
+- **Blue** — RHD gene nodes
+- **Green** — TMEM50A gene nodes  
+- **Pink/Red** — RHCE gene nodes
+- **Light blue** — RSRP1 gene nodes
+- **Black** — traversed by this haplotype but not overlapping any known gene
+- **Grey** — present in the pangenome graph but not traversed by this haplotype
+
+---
+
+### CHM13 reference haplotype — RHD;RHCE
+
+![CHM13 hap0](example_figures/RHD_locus/CHM13_hap0_RHD_locus.png)
+
+The CHM13 reference takes the canonical `RHD;RHCE` haplotype — the most 
+common structural form present in ~48% of haplotypes in the HPRC cohort. 
+The walk traverses RHD (blue, large right loop), TMEM50A (green, lower loop), 
+and a short segment of RHCE (pink). The left loop is entirely grey — it 
+represents an alternate structural path (the RHCE-only haplotype) not taken 
+by CHM13.
+
+---
+
+### GRCh38 reference haplotype — RHD;RHCE
+
+![GRCh38 hap0](example_figures/RHD_locus/GRCh38_hap0_RHD_locus.png)
+
+GRCh38 also carries the `RHD;RHCE` haplotype, taking a structurally similar 
+path to CHM13 through RHD and TMEM50A. A subtle difference is visible at the 
+central junction — GRCh38 diverges slightly from CHM13 through a small 
+alternate bubble, reflecting minor sequence differences between the two 
+reference assemblies at this locus. The large right loop (alternate path) 
+is untraversed (grey).
+
+---
+
+### HG00733 haplotype 2 — RHCE only (RHD deletion)
+
+![HG00733 hap2](example_figures/RHD_locus/HG00733_hap2_RHD_locus.png)
+
+HG00733 hap2 carries the `RHCE only` structural haplotype — it traverses 
+TMEM50A (green) and RHCE (pink) but completely skips the RHD loop. This 
+corresponds to an RHD deletion, producing an RhD-negative phenotype. 
+Individuals homozygous for this haplotype are RhD-negative, which is 
+clinically significant for blood transfusion compatibility and hemolytic 
+disease of the fetus and newborn. Both the left and right loops are 
+untraversed (grey), confirming this haplotype takes a distinct path 
+through the graph that bypasses both RHD copies.
+
+---
+
+### HG01106 haplotype 1 — Novel insertion (black traversal)
+
+![HG01106 hap1](example_figures/RHD_locus/HG01106_hap1_RHD_locus.png)
+
+HG01106 hap1 is the most structurally distinctive haplotype shown here. 
+It traverses RHD (blue) and TMEM50A (green) like the reference, but also 
+takes a large left loop that is colored **entirely black** — meaning this 
+haplotype traverses a substantial amount of sequence that does not overlap 
+any annotated gene. This black traversal represents either a large novel 
+insertion, a gene conversion segment from a paralogous sequence, or an 
+inversion that routes the haplotype through non-genic sequence before 
+rejoining the main graph. This is consistent with the `RHD-RHCE(n)-RHD` 
+class of complex haplotypes identified in the HPRC paper, where gene 
+conversion events between RHD and RHCE introduce paralogous sequence 
+variants. The black coloring directly highlights where the biological 
+complexity lies — sequence traversed by this haplotype that falls outside 
+current gene annotations and warrants further investigation.
+
+---
+
+### HG03516 haplotype 2 — RHD;RHCE variant
+
+![HG03516 hap2](example_figures/RHD_locus/HG03516_hap2_RHD_locus.png)
+
+HG03516 hap2 carries a structural haplotype similar to the reference 
+`RHD;RHCE` form but with a visibly different routing through the central 
+junction of the graph. The haplotype traverses RHD (blue), crosses through 
+the junction twice (visible as the crossover pattern in the center), then 
+continues through TMEM50A (green) and RHCE (pink). This crossing pattern 
+suggests an inversion or a more complex rearrangement at the RHD/RHCE 
+boundary relative to the reference path — a structural variant that would 
+be invisible to short-read sequencing but is clearly resolved in the 
+pangenome graph.
+
+---
+
+These five examples demonstrate panscan's ability to distinguish structurally 
+distinct haplotypes at complex loci, identify gene content along each 
+haplotype path, and flag novel or non-genic traversals that may represent 
+undescribed structural variants. The same visualization is automatically 
+produced for every sample in the pangenome across all detected complex regions.
