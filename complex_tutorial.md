@@ -8,7 +8,7 @@ The `complex` module identifies and visualizes complex structural variant loci i
 
 ## Defining a Complex SV Locus
 
-As per the UPR ([UAE Pangenome Reference](https://www.nature.com/articles/s41467-025-61645-w)) paper definition, a complex SV locus is defined as a genomic window containing **at least one top-level graph bubble (snarl) with a minimum allele size of 10,000bp and a minimum of 5 alternate alleles**. This reflects regions where multiple large, structurally distinct haplotypes co-exist in the population.
+As per the APR ([Arab Pangenome Reference](https://www.nature.com/articles/s41467-025-61645-w)) paper definition, a complex SV locus is defined as a genomic window containing **at least one top-level graph bubble (snarl) with a minimum allele size of 10,000bp and a minimum of 5 alternate alleles**. This reflects regions where multiple large, structurally distinct haplotypes co-exist in the population.
 
 For reproducibility and direct comparison with HPRC-style analyses (following the methodology of the [HPRC draft pangenome paper](https://www.nature.com/articles/s41586-023-05896-x)), users can run with relaxed settings that lower the allele size threshold to 5,000bp (selected by the HPRC authors based on manual inspection of Bandage plots) and reduce the minimum allele count to 1. This will identify a broader set of structurally complex regions and allow direct comparison with HPRC published loci. See the parameter table and example commands below.
 
@@ -49,6 +49,16 @@ Common patterns:
 Using the wrong separator will cause gene coloring and walk extraction to fail silently. Always verify before running.
 
 ---
+## Trying panscan complex on UPR Phase 1 Data
+
+To run a trial analysis, the APR Phase 1 dataset is publicly available and provides a well-characterized pangenome suitable for testing the `complex` module end-to-end.
+
+**Primary download:** [MBRU Arab Pangenome Reference](https://www.mbru.ac.ae/the-arab-pangenome-reference/)
+
+**Backup / Zenodo archive:** [https://zenodo.org/records/17587133](https://zenodo.org/records/17587133)
+
+Download the pangenome GFA, VCF, and use `--sep_pattern "#0#"` and `--ref_name CHM13` for this dataset.
+
 
 ## Step-by-Step
 
@@ -272,3 +282,10 @@ echo "Done."
 **Sample haplotype visualization** — each sample's walk through the region is extracted and colored by gene identity. Samples with missing genotypes (`GT: .|.`) at large SVs will show minimal traversal through the reference graph. This is biologically correct — it indicates the sample carries a large private structural variant not represented in the reference-anchored graph, and should be interpreted as such rather than as a pipeline failure.
 
 **Memory** — `--min_free_gb` controls region-level parallelism (graph extraction workers), while `--plot_min_free_gb` controls Bandage-level parallelism independently. Set both appropriately for your cluster. For HPRC-scale pangenomes, `--min_free_gb 50` and `--plot_min_free_gb 30` are recommended starting points.
+
+**⏱ GFAB Conversion Time Reference**
+Building the `.gfab` index is a one-time operation per pangenome. Approximate runtimes on a standard HPC node:
+- HPRC v1.1: ~15 minutes
+- HPRC v2: ~1.5 hours
+
+Plan accordingly and do not include this step in time-sensitive job allocations.
