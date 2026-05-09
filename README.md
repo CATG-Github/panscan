@@ -214,7 +214,7 @@ panscan find_uniq_variants \
   --db ALL \
   --overlap 80 \
   --db_path /path/to/databases \
-  --outdir /path/to/output
+  -o /path/to/output
 ```
 
 #### **Variant Types**
@@ -256,7 +256,7 @@ panscan novel_seq \
   -r /path/to/reference.vcf \
   --exclude GRCh38 \
   --db_path /path/to/panscan_db \
-  --outdir /path/to/output \
+  -o /path/to/output \
   -t 16 \
   --dt 1 \
   --dpi 600
@@ -270,7 +270,7 @@ panscan novel_seq \
   -pRef /path/to/preprocessed_reference.vcf \
   --exclude GRCh38 \
   --db_path /path/to/panscan_db \
-  --outdir /path/to/output \
+  -o /path/to/output \
   -t 16 \
   --dt 1 \
   --dpi 600 
