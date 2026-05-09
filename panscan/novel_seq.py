@@ -2,7 +2,7 @@ import argparse
 import subprocess
 import os
 
-def run_novel_seq(infile, ref, threads, dthreads, dpi, pInp, pRef, exclude,  debug, db_path):
+def run_novel_seq(infile, ref, threads, dthreads, dpi, pInp, pRef, exclude, debug, db_path, op=None):
     # Convert provided paths to absolute paths.
     if infile:
         infile = os.path.abspath(infile)
@@ -12,8 +12,8 @@ def run_novel_seq(infile, ref, threads, dthreads, dpi, pInp, pRef, exclude,  deb
         pInp = os.path.abspath(pInp)
     if pRef:
         pRef = os.path.abspath(pRef)
-    #if output:
-    #    output = os.path.abspath(output)
+    if op:
+        op = os.path.abspath(op)
     if db_path:
         db_path = os.path.abspath(db_path)
     
@@ -24,9 +24,8 @@ def run_novel_seq(infile, ref, threads, dthreads, dpi, pInp, pRef, exclude,  deb
         print("RTG decompose threads:", dthreads)
         print("DPI:", dpi)
         print("Exclude:", exclude)
-        #print("Genome:", genome)
         print("DB path:", db_path if db_path else "(none)")
-        #print("Output directory:", output if output else "(default NovelSeq_Results)")
+        print("Output directory:", op if op else "(default NovelSeq_Results)")
     
     # Determine the directory of this Python file (i.e. where the package is installed)
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -75,6 +74,11 @@ def run_novel_seq(infile, ref, threads, dthreads, dpi, pInp, pRef, exclude,  deb
     if db_path:
         cmd.extend(["-db_path", db_path])
 
+    # Pass output directory as absolute path so Perl writes there without
+    # needing to chdir (which would break lib '.' / perlModules resolution).
+    if op:
+        cmd.extend(["-op", op])
+
     if debug:
         print("Command to execute:", " ".join(cmd))
     
@@ -83,7 +87,7 @@ def run_novel_seq(infile, ref, threads, dthreads, dpi, pInp, pRef, exclude,  deb
 
 def main(args):
     run_novel_seq(args.vcf, args.ref, args.threads, args.dt, args.dpi,
-                  args.pInp, args.pRef, args.exclude,  args.debug, args.db_path)
+                  args.pInp, args.pRef, args.exclude, args.debug, args.db_path, args.op)
 
 def add_subparser(subparsers):
     parser = subparsers.add_parser("novel_seq", help="Generate a novel sequence FASTA from your VCF file by comparing with reference pangenome VCF.")
@@ -118,7 +122,7 @@ def add_subparser(subparsers):
     parser.add_argument("-exclude", "--exclude", default="NA", help="Samples to exclude (default: NA).")
     #parser.add_argument("-genome", "--genome", default="HG38", help="Genome version (HG38 or CHM13; default: HG38).")
     parser.add_argument("--db_path", metavar="DIR", help="Path to database directory used by the Perl scripts.")
-    #parser.add_argument("-o", "--op", default="NovelSeq_Results", help="Optional output directory. If not provided, the tool uses its default ('NovelSeq_Results').")
+    parser.add_argument("-o", "--op", default="NovelSeq_Results", help="Optional output directory. If not provided, the tool uses its default ('NovelSeq_Results').")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode with diagnostic messages.")
     parser.set_defaults(func=main)
 

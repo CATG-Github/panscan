@@ -46,6 +46,7 @@ my $db_path = 'NA';
 my $excludeSample = 'NA';
 my $dpi = 600; # dpi for Ideogram figure #
 my $genome = 'NA';
+my $op = undef; # Output folder override #
 my $help = undef;
 
 GetOptions(
@@ -58,6 +59,7 @@ GetOptions(
 	'pInp=s' => \$pInfile1,
 	'pRef=s' => \$pInfile2,
 	'exclude=s' => \$excludeSample,
+        'op=s'      => \$op,
         'help'      => \$help
 ) or die "Error in command line arguments\n";
 
@@ -112,7 +114,14 @@ else
 }
 
 my $resultfolder = 'NovelSeq_Results';
-if(-d $resultfolder)
+if(defined($op))
+{
+        # Use the caller-supplied path as-is (Python wrapper already made it absolute).
+        # Create it if it doesn't exist; don't rename it.
+        $resultfolder = $op;
+        mkdir $resultfolder unless(-d $resultfolder);
+}
+elsif(-d $resultfolder)
 {
         my $prefix = (split'\_',$resultfolder,-1)[-1];
         my $fNo = 0;

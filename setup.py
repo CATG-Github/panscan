@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="panscan",
-    version="1.4.5",
+    version="1.6",
     packages=find_packages(),
     package_data={
         "panscan": [

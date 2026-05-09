@@ -56,7 +56,11 @@ def run_find_uniq_variants(vcf, var_type, pbsv, db, overlap, op, db_path, debug)
     
     # Set the working directory to the Perl script's "scripts" folder so that config.yaml and modules are found.
     cwd = os.path.join(script_dir, "scripts")
-    calldir = os.getcwd()
+    # Use the requested output dir as the root for results; fall back to cwd.
+    # PANSCAN_CALLDIR is what findUniqVariants.pl uses to build absolute output
+    # folder paths — the Perl script itself stays in the scripts/ dir so that
+    # lib '.' and perlModules:: resolution are never broken.
+    calldir = os.path.abspath(op) if op else os.getcwd()
     env = os.environ.copy()
     env["PANSCAN_CALLDIR"] = calldir
     # Add the scripts directory to PERL5LIB so that Perl locates its modules.

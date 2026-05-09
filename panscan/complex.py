@@ -16,10 +16,41 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 import pandas as pd
 from PIL import Image, ImageDraw, ImageFont
+import time
+import threading
 
 # ------------------------------
 # Utility
 # ------------------------------
+
+import gzip
+import shutil
+import queue
+
+
+def _decompress_if_gz(path: str, dest_dir: str = ".") -> str:
+    """
+    If path ends with .gz, decompress to dest_dir and return new path.
+    Otherwise return path unchanged. Skips decompression if output already exists.
+    """
+    if not path.endswith(".gz"):
+        return path
+    out_path = os.path.join(dest_dir, os.path.basename(path)[:-3])
+    if os.path.exists(out_path):
+        print(f"[decompress] using existing {out_path}")
+        return out_path
+    print(f"[decompress] {path} → {out_path}")
+    with gzip.open(path, "rb") as f_in, open(out_path, "wb") as f_out:
+        shutil.copyfileobj(f_in, f_out)
+    return out_path
+
+
+def _open_maybe_gz(path: str, mode: str = "r"):
+    """Open a file that may or may not be gzipped."""
+    if path.endswith(".gz"):
+        return gzip.open(path, mode + "t" if "b" not in mode else mode)
+    return open(path, mode)
+
 
 def up_to_date(out_path, *inputs):
     if not os.path.exists(out_path):
@@ -49,7 +80,7 @@ def get_interesting_alleles(vcf_file, n_10kb, site_size):
     if n_10kb is None: n_10kb = 5
     if site_size is None: site_size = 10000
     out = []
-    with open(vcf_file, 'r') as vcf:
+    with _open_maybe_gz(vcf_file, 'r') as vcf:
         for line in vcf:
             if line.startswith('#'): 
                 continue
@@ -68,18 +99,18 @@ def find_complex_sites(vcf_file, n_10kb, site_size):
     alleles = get_interesting_alleles(vcf_file, n_10kb, site_size)
     return _sites_df(alleles)
 
-def find_interesting_regions(site_df, window_size):
+def find_interesting_regions(site_df, window_size, min_sites=1):
     if window_size is None: window_size = 100000
     regions = []
     for chrom in site_df['chrom'].unique():
         tmp = site_df.loc[site_df['chrom'] == chrom]
-        if tmp.empty: 
+        if tmp.empty:
             continue
         mn, mx = tmp['pos'].min(), tmp['pos'].max()
         ptr = mn
-        while ptr < mx:
-            count = tmp.loc[(tmp['pos'] > ptr) & (tmp['pos'] < ptr + window_size)].shape[0]
-            if count >= 2:
+        while ptr <= mx:
+            count = tmp.loc[(tmp['pos'] >= ptr) & (tmp['pos'] < ptr + window_size)].shape[0]
+            if count >= min_sites:
                 regions.append((chrom, ptr, ptr + window_size))
             ptr += window_size
     return regions
@@ -87,7 +118,8 @@ def find_interesting_regions(site_df, window_size):
 # --- The pipeline entry that complex-fast expects to call ---
 def run_panscan_complex(
     vcf_file, a, n, s, l, sites, sv, gfab, ref_fasta, gaf_file,
-    sep_pattern, gff3_file, ref_name=None, regions=False, **_unused
+    sep_pattern, gff3_file, ref_name=None, regions=False, no_walks=False,
+    max_workers=0, min_free_gb=20.0, **_unused
 ):
     # default ref name from FASTA if user didn't pass one
     if ref_name is None and ref_fasta:
@@ -95,24 +127,44 @@ def run_panscan_complex(
     if ref_name is None:
         ref_name = "CHM13"
 
+    # decompress inputs if gz
+    vcf_file = _decompress_if_gz(vcf_file)
+    gfab     = _decompress_if_gz(gfab)
+    if gaf_file:
+        gaf_file = _decompress_if_gz(gaf_file)
+    if gff3_file:
+        gff3_file = _decompress_if_gz(gff3_file)
+
     print(f"[complex-fast] scanning complex sites: vcf={vcf_file} a={a} n={n} s={s} l={l} sites={sites} sv={sv}")
     site_df = find_complex_sites(vcf_file, n, s)
-    complex_regions = find_interesting_regions(site_df, l)
+    print(f"[debug] complex sites found: {len(site_df)}")
+    print(site_df)
+    complex_regions = find_interesting_regions(site_df, l, min_sites=sites)
+    print(f"[debug] complex regions found: {len(complex_regions)}")
+    print(complex_regions)
     pd.DataFrame(complex_regions).to_csv("complex_regions.csv", index=False)
 
     # Read provided GAF (do NOT try to regenerate here)
     if not gaf_file or not os.path.exists(gaf_file):
         raise FileNotFoundError(f"--gaf_file not found: {gaf_file}")
-    df_arp = pd.read_csv(gaf_file, sep="\t", header=None)
+    
     # normalize gene/sample column to match legacy logic
-    df_arp[0] = (
-        df_arp[0]
-        .str.split('_', expand=True)[0]
-        .str.split('-', expand=True).iloc[:, 1:]
-        .fillna('')
-        .apply('-'.join, axis=1)
-        .str.strip('-')
-    )
+    def normalize_gaf_query(q: str) -> str:
+        q = str(q).strip()
+        # drop coordinates suffix
+        q = q.split("::", 1)[0]
+        # handle optional "gene-" prefix
+        if q.startswith("gene-"):
+            q = q[len("gene-"):]
+        # some pipelines add a trailing underscore before "::"
+        if q[-1]=="_":
+            q = q.rstrip("_")
+        # if anything still has underscores, keep the first token (common in your good format)
+        # q = q.split("_", 1)[0]
+        return q
+
+    df_arp = pd.read_csv(gaf_file, sep="\t", header=None)
+    df_arp[0] = df_arp[0].map(normalize_gaf_query)
 
     tasks = []
     graph_base = os.path.splitext(os.path.basename(gfab))[0]
@@ -129,12 +181,74 @@ def run_panscan_complex(
             gfab, gff3_file, region, cutpoints, graph_base, viz_output, connected_output,
             ref_name, chrom, int(start), int(end),
             f"{ref_name}{sep_pattern}{chrom}:{start}-{end}",  # query_region (for logging)
-            workdir, gaf_file, df_arp, sep_pattern
+            workdir, gaf_file, df_arp, sep_pattern, no_walks
         ))
 
-    for t in tasks:
-        # uses the faster produce_plottable already in complex-fast.py
+    total_workers  = max_workers or max(1, multiprocessing.cpu_count())
+    # auto split: 90% produce, 10% plot (min 1 each)
+    plot_workers    = max(1, total_workers // 10)
+    produce_workers = max(1, total_workers - plot_workers)
+    print(f"[complex] {len(tasks)} region(s) | produce_workers={produce_workers} plot_workers={plot_workers}")
+
+    memgate = _PlotMemoryGate(min_free_gb=min_free_gb, check_sec=2.0, label="produce_plottable")
+
+    # queue connecting producers to consumer plot pool
+    plot_queue = queue.Queue()
+    _SENTINEL = object()
+
+    def _run_task(t):
+        memgate.wait_for_memory()
         produce_plottable(*t)
+        # signal consumer: this site is ready to plot
+        # extract site workdir from task tuple for plot_complex_sites
+        plot_queue.put(t)
+
+    def _plot_consumer():
+        """Consume completed regions and plot as they arrive."""
+        while True:
+            item = plot_queue.get()
+            if item is _SENTINEL:
+                plot_queue.task_done()
+                break
+            try:
+                # unpack enough to identify the workdir
+                (t_gfab, t_gff3, t_region, t_cutpoints, t_graph_base,
+                 t_viz_output, t_connected_output, t_ref, t_chrom,
+                 t_start, t_end, t_query_region, t_workdir,
+                 t_gene_alignments, t_df_all, t_sep_pattern, t_no_walks) = item
+                plot_complex_sites(
+                    workdir=t_workdir,
+                    no_walks=t_no_walks,
+                    no_images=False,
+                    max_workers=plot_workers,
+                    plot_min_free_gb=min_free_gb,
+                )
+            except Exception as e:
+                print(f"[warn] plot_complex_sites failed: {e}")
+            finally:
+                plot_queue.task_done()
+
+    # start plot consumer threads
+    consumer_threads = []
+    for _ in range(plot_workers):
+        t = threading.Thread(target=_plot_consumer, daemon=True)
+        t.start()
+        consumer_threads.append(t)
+
+    # run producers
+    with ThreadPoolExecutor(max_workers=produce_workers) as ex:
+        futs = [ex.submit(_run_task, t) for t in tasks]
+        for fut in as_completed(futs):
+            try:
+                fut.result()
+            except Exception as e:
+                print(f"[error] produce_plottable failed: {e}")
+
+    # signal consumers to stop
+    for _ in range(plot_workers):
+        plot_queue.put(_SENTINEL)
+    for t in consumer_threads:
+        t.join()
 
 # --- END: port ---
 
@@ -238,9 +352,9 @@ def extract_genes_from_region_fast(chrom, start, end, protein_coding=None):
 # ------------------------------
 PALETTE = [
     "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd",
-    "#8c564b", "#e377c2", "#7f7f7f", "#bcbd22", "#17becf",
+    "#8c564b", "#e377c2", "#ff9896", "#bcbd22", "#17becf",
     "#393b79", "#637939", "#8c6d31", "#843c39", "#7b4173",
-    "#dbdb8d", "#9edae5", "#c7c7c7", "#ff9896", "#98df8a",
+    "#dbdb8d", "#9edae5", "#9edae5", "#ff9896", "#98df8a",
 ]
 GOLDEN_ANGLE = 0.61803398875
 
@@ -409,7 +523,7 @@ def extract_gene_colors_from_gfa(gfa_path):
 # Walks (per-sample)
 # ------------------------------
 
-def _build_sample_walk_csvs(walks_gfa, color_csv_dir, all_colors_csv):
+def _build_sample_walk_csvs(walks_gfa, color_csv_dir, all_colors_csv, viz_nodes=None):
     if not os.path.exists(walks_gfa):
         return 0
 
@@ -429,32 +543,37 @@ def _build_sample_walk_csvs(walks_gfa, color_csv_dir, all_colors_csv):
                     node2col[nid] = col
 
     made = 0
-    sample_nodes = {}
+    # key = (sample, hap) to keep haplotypes separate — fixes collapse bug
+    sample_hap_nodes = {}
 
     with open(walks_gfa) as f:
         for ln in f:
             if not ln.startswith("W\t"):
                 continue
             parts = ln.rstrip("\n").split("\t")
-            walk_name = parts[1]
-            path = parts[-1] if len(parts) >= 6 else ""
-            #sample = walk_name.split("_", 1)[0]
-            sample_raw = walk_name.strip()
+            if len(parts) < 7:
+                continue
+            sample_raw = parts[1].strip()
+            hap        = parts[2].strip()
+            path       = parts[6]
+            # sanitize sample name but keep hap separate
             sample = re.sub(r'[^A-Za-z0-9._+-]+', '_', sample_raw)
-            nodes = [n for n in re.split(r"[<>]", path) if n]
-            nodes = [_normalize_node_id(n) for n in nodes]
-            sample_nodes.setdefault(sample, set()).update(nodes)
+            key = f"{sample}.hap{hap}"
+            nodes = [_normalize_node_id(n) for n in re.split(r"[<>]", path) if n]
+            sample_hap_nodes.setdefault(key, set()).update(nodes)
 
     os.makedirs(color_csv_dir, exist_ok=True)
-    for sample, nodes in sample_nodes.items():
-        out_csv = os.path.join(color_csv_dir, f"{sample}.walks.csv")
+    for hap_key, nodes in sample_hap_nodes.items():
+        out_csv = os.path.join(color_csv_dir, f"{hap_key}.walks.csv")
         with open(out_csv, "w") as w:
             for n in nodes:
+                if viz_nodes and n not in viz_nodes:
+                    continue
                 col = node2col.get(n, "#000000")
                 w.write(f"{n}, {col}\n")
         made += 1
 
-    print(f"[walks] built {made} sample walk CSVs in {color_csv_dir}")
+    print(f"[walks] built {made} per-haplotype walk CSVs in {color_csv_dir}")
     return made
 
 
@@ -474,7 +593,7 @@ def __text_size(draw, text, font):
             return (int(0.6 * len(text) * 16), 24)
 
 
-def create_legend_image(color_file, image_path, output_path, title, is_walk=False):
+def create_legend_image(color_file, image_path, output_path, title, is_walk=False, colored_gfa=None):
     from collections import Counter
 
     legend = {}
@@ -493,21 +612,43 @@ def create_legend_image(color_file, image_path, output_path, title, is_walk=Fals
             else:
                 raise ValueError("no headered gene,color")
     except Exception:
+        #if is_walk:
+        #    sample = os.path.splitext(os.path.basename(color_file))[0]
+        #    cols = []
+        #    with open(color_file) as f:
+        #        for ln in f:
+        #            ln = ln.strip()
+        #            if not ln:
+        #                continue
+        #            parts = [p.strip() for p in ln.split(",")]
+        #            if len(parts) >= 2 and parts[1].startswith("#"):
+        #                cols.append(parts[1])
+        #    c = Counter(cols).most_common(1)[0][0] if cols else "#000000"
+        #    legend = {sample: c}
         if is_walk:
-            sample = os.path.splitext(os.path.basename(color_file))[0]
-            cols = []
-            with open(color_file) as f:
-                for ln in f:
-                    ln = ln.strip()
-                    if not ln:
-                        continue
-                    parts = [p.strip() for p in ln.split(",")]
-                    if len(parts) >= 2 and parts[1].startswith("#"):
-                        cols.append(parts[1])
-            c = Counter(cols).most_common(1)[0][0] if cols else "#000000"
-            legend = {sample: c}
+                sample = os.path.splitext(os.path.basename(color_file))[0]
+                # load gene2color from the colored GFA's GN:Z tag
+                gene2color = {}
+                if colored_gfa and os.path.exists(colored_gfa):
+                        gene2color = extract_gene_colors_from_gfa(colored_gfa)
+                if gene2color:
+                        legend = gene2color  # {gene_name: color}
+                        legend["(traversed, no gene)"] = "#000000"  # ← ADD HERE
+                else:
+                # fallback to single dominant color
+                        cols = []
+                        with open(color_file) as f:
+                           for ln in f:
+                                ln = ln.strip()
+                                if not ln:
+                                         continue
+                                parts = [p.strip() for p in ln.split(",")]
+                                if len(parts) >= 2 and parts[1].startswith("#"):
+                                         cols.append(parts[1])
+                        c = Counter(cols).most_common(1)[0][0] if cols else "#000000"
+                        legend = {sample: c}
         else:
-            legend = {}
+                legend = {}
 
     base = Image.open(image_path).convert("RGBA")
     W, H = base.width, base.height
@@ -558,11 +699,82 @@ def create_legend_image(color_file, image_path, output_path, title, is_walk=Fals
 # Bandage runner (parallel)
 # ------------------------------
 
-def _auto_workers(user_max):
-    if user_max and user_max > 0:
-        return user_max
+#def _auto_workers(user_max):
+#    if user_max and user_max > 0:
+#        return user_max
+#    return max(2, min(6, multiprocessing.cpu_count() // 3))
+
+def _cpu_auto_workers():
+    """Safe default when the user doesn't specify a thread budget."""
     return max(2, min(6, multiprocessing.cpu_count() // 3))
 
+def _effective_plot_workers(user_threads: int, plot_threads: int) -> int:
+    """
+    Decide how many parallel Bandage runs to allow.
+
+    Rules:
+      - If --plot_threads is set (>0), use it.
+      - Else if user provided a thread budget (e.g. --threads / --max_workers),
+        use 1/3 of that budget (min 1).
+      - Else fall back to a small CPU-based default.
+    """
+    if plot_threads and plot_threads > 0:
+        return max(1, int(plot_threads))
+    if user_threads and user_threads > 0:
+        return max(1, int(user_threads) // 3)
+    return _cpu_auto_workers()
+
+def _mem_available_bytes() -> int:
+    """Return available system memory in bytes (Linux-friendly, no psutil required)."""
+    try:
+        import psutil  # type: ignore
+        return int(psutil.virtual_memory().available)
+    except Exception:
+        pass
+
+    try:
+        with open("/proc/meminfo") as f:
+            info = {}
+            for ln in f:
+                if ":" not in ln:
+                    continue
+                k, v = ln.split(":", 1)
+                info[k.strip()] = v.strip()
+        if "MemAvailable" in info:
+            kb = int(info["MemAvailable"].split()[0])
+            return kb * 1024
+    except Exception:
+        pass
+
+    return 0
+
+
+class _PlotMemoryGate:
+    """Blocks launching new Bandage processes when free RAM is too low."""
+
+    def __init__(self, min_free_gb: float = 0.0, check_sec: float = 1.0, label: str = "Bandage"):
+        self.min_free_bytes = int(max(0.0, float(min_free_gb)) * (1024 ** 3))
+        self.check_sec = max(0.1, float(check_sec))
+        self.label = label
+        self._lock = threading.Lock()
+        self._last_log = 0.0
+
+    def wait_for_memory(self):
+        if self.min_free_bytes <= 0:
+            return
+        while True:
+            avail = _mem_available_bytes()
+            if avail <= 0 or avail >= self.min_free_bytes:
+                return
+            now = time.time()
+            with self._lock:
+                if now - self._last_log >= 5.0:
+                    self._last_log = now
+                    need_gb = self.min_free_bytes / (1024 ** 3)
+                    avail_gb = avail / (1024 ** 3)
+                    print(f"[memwatch] {self.label}: waiting for RAM (free {avail_gb:.2f} GB < {need_gb:.2f} GB)")
+            time.sleep(self.check_sec)
+ 
 
 def _run_bandage(colored_gfa, out_png):
     env = os.environ.copy()
@@ -582,6 +794,11 @@ def _run_bandage(colored_gfa, out_png):
         "custom",
     ]
     subprocess.run(cmd, check=True, env=env)
+
+def _run_bandage_with_memwatch(colored_gfa, out_png, memgate):
+    if memgate is not None:
+        memgate.wait_for_memory()
+    _run_bandage(colored_gfa, out_png)
 
 
 # ------------------------------
@@ -606,24 +823,73 @@ def produce_plottable(*task):
         gene_alignments,
         df_all,
         sep_pattern,
+        no_walks,
     ) = task
 
     Path(workdir).mkdir(parents=True, exist_ok=True)
 
     modified_query_region = f"{ref}{sep_pattern}{chrom}:{start}-{end}"
-    connected_command = f"gfabase sub {gfab} -o {connected_output} {modified_query_region} --range --cutpoints {cutpoints} --view --connected"
+
+    # ── viz GFA (no --connected, fast regional subgraph) ────────────────────
     viz_command = f"gfabase sub {gfab} -o {viz_output} {modified_query_region} --range --view --cutpoints {cutpoints}"
-
-    print(connected_command)
     print(viz_command)
-
-    os.system(connected_command)
-    os.system(viz_command)
-
     if not os.path.isfile(viz_output):
         os.system(viz_command)
-    if not os.path.isfile(connected_output):
+    if not os.path.isfile(viz_output):
+        print(f"[warn] viz GFA missing after extraction: {viz_output}")
+
+    # ── walks GFA: extract full connected → filter W lines → compact ────────
+    # tmp file keeps the full connected GFA for reference/debugging
+    tmp_connected = connected_output.replace(".walks.gfa", ".walks.tmp.gfa")
+    connected_command = (f"gfabase sub {gfab} -o {tmp_connected} "
+                         f"{modified_query_region} --range --cutpoints {cutpoints} "
+                         f"--view --connected")
+    print(connected_command)
+    if not os.path.isfile(tmp_connected):
         os.system(connected_command)
+    if not os.path.isfile(tmp_connected):
+        print(f"[warn] tmp connected GFA missing: {tmp_connected}")
+
+    # build regional node set from viz GFA
+    # AFTER
+    regional_nodes = set()
+    if os.path.exists(tmp_connected):
+        with open(tmp_connected) as f:
+            for ln in f:
+                if ln.startswith("S\t"):
+                    regional_nodes.add(ln.split("\t", 2)[1].strip())
+    print(f"[debug] regional nodes from connected GFA: {len(regional_nodes)}")
+    viz_nodes = set()
+    if os.path.exists(viz_output):
+        with open(viz_output) as f:
+            for ln in f:
+                if ln.startswith("S\t"):
+                    viz_nodes.add(ln.split("\t", 2)[1].strip())
+    print(f"[debug] viz nodes: {len(viz_nodes)}")
+
+    # filter W lines from tmp connected GFA to only those traversing regional nodes
+    w_written = 0
+    if os.path.exists(tmp_connected) and regional_nodes:
+        with open(connected_output, "w") as fout:
+            # copy S/E/H lines from viz GFA
+            with open(viz_output) as f:
+                for ln in f:
+                    fout.write(ln)
+            # append filtered W lines
+            with open(tmp_connected) as f:
+                for ln in f:
+                    if not ln.startswith("W\t"):
+                        continue
+                    parts = ln.rstrip("\n").split("\t")
+                    if len(parts) < 7:
+                        continue
+                    walk_nodes = set(n for n in re.split(r"[<>]", parts[6]) if n)
+                    if walk_nodes & regional_nodes:
+                        fout.write(ln)
+                        w_written += 1
+        print(f"[debug] compact walks GFA: {w_written} W lines → {connected_output}")
+    elif not regional_nodes:
+        print(f"[warn] no regional nodes found, skipping W line filtering")
 
     # Extract genes fast
     all_genes = extract_genes_from_region_fast(chrom, start, end, protein_coding=None)
@@ -640,22 +906,21 @@ def produce_plottable(*task):
     with open(os.path.join(debug_dir, f"{site_name}.pc_genes.txt"), "w") as w:
         for g in sorted(set(pc_genes)):
             w.write(g + "\n")
-    print(
-        f"[debug] {site_name}: all={len(all_genes)}, pc={len(pc_genes)} (lists in {debug_dir})"
-    )
+    print(f"[debug] {site_name}: all={len(all_genes)}, pc={len(pc_genes)} (lists in {debug_dir})")
 
     # Prepare per-site dirs
     color_csv_dir = os.path.join(workdir, "color_csvs")
     Path(color_csv_dir).mkdir(parents=True, exist_ok=True)
     Path(os.path.join(color_csv_dir, "gene_colors")).mkdir(parents=True, exist_ok=True)
 
-    # Limit nodes to viz GFA
+    # ── FIX: node_filter from connected GFA nodes (not viz GFA) ─────────────
     node_filter = set()
-    if os.path.exists(viz_output):
-        with open(viz_output) as f:
+    if os.path.exists(connected_output):
+        with open(connected_output) as f:
             for ln in f:
                 if ln.startswith("S\t"):
-                    node_filter.add(ln.split("\t", 2)[1])
+                    node_filter.add(ln.split("\t", 2)[1].strip())
+    print(f"[debug] node_filter from connected GFA: {len(node_filter)} nodes")
 
     # Build colors + CSVs
     all_df, _ = get_segement_colors_from_alignment(
@@ -672,15 +937,16 @@ def produce_plottable(*task):
     if not pc_df.empty:
         pc_df.to_csv(pc_csv, header=False, index=False)
 
-    print(
-        f"[debug] wrote color CSVs in {color_csv_dir} (all={len(all_df)} rows, pc={len(pc_df)} rows)"
-    )
+    print(f"[debug] wrote color CSVs in {color_csv_dir} (all={len(all_df)} rows, pc={len(pc_df)} rows)")
 
-    # Build sample walk CSVs
-    _ = _build_sample_walk_csvs(connected_output, color_csv_dir, all_csv)
+    # Build per-haplotype walk CSVs (skip when --no-walks)
+    if not no_walks:
+        _ = _build_sample_walk_csvs(connected_output, color_csv_dir, all_csv, viz_nodes=viz_nodes)
+    else:
+        print('[debug] --no-walks set: skipping walk CSV generation')
 
 
-def plot_complex_sites(workdir=None, no_images=False, max_workers=0):
+def plot_complex_sites(workdir=None, no_images=False, no_walks=False, max_workers=0, plot_threads=0, plot_min_free_gb: float = 0.0, plot_mem_check_sec: float = 1.0):
     if workdir:
         complex_sites = [workdir]
     else:
@@ -736,38 +1002,71 @@ def plot_complex_sites(workdir=None, no_images=False, max_workers=0):
                 if not up_to_date(output_png, colored_gfa):
                     bandage_jobs.append((colored_gfa, output_png, legend_csv, legend_title, False))
 
-        # sample walks
-        sample_walks_files = glob.glob(os.path.join(color_csv_dir, "*.walks.csv"))
-        for walk_file in sample_walks_files:
-            for gfa_file in viz_gfa_files:
-                gfa_base = os.path.basename(gfa_file)
-                sample = os.path.basename(walk_file).replace(".walks.csv", "")
-                colored_gfa = os.path.join(colored_gfa_dir, f"{sample}_{gfa_base}")
-                output_png = os.path.join(
-                    bandage_img_dir, f"{sample}_{gfa_base.replace('.gfa', '.png')}"
-                )
-                legend_png = os.path.join(
-                    legend_img_dir, f"{sample}_{gfa_base.replace('.gfa', '.png')}"
-                )
-
-                if not up_to_date(colored_gfa, gfa_file, walk_file):
-                    add_color_tags(walk_file, gfa_file, colored_gfa)
-                if no_images:
-                    continue
-                if not up_to_date(output_png, colored_gfa):
-                    bandage_jobs.append(
-                        (colored_gfa, output_png, walk_file, f"{site_name} - Sample {sample} Walk", True)
+        # sample walks — parallel add_color_tags with memory gate
+        if not no_walks:
+            sample_walks_files = glob.glob(os.path.join(color_csv_dir, "*.walks.csv"))
+            walk_tag_jobs = []
+            for walk_file in sample_walks_files:
+                for gfa_file in viz_gfa_files:
+                    gfa_base = os.path.basename(gfa_file)
+                    sample = os.path.basename(walk_file).replace(".walks.csv", "")
+                    colored_gfa = os.path.join(colored_gfa_dir, f"{sample}_{gfa_base}")
+                    output_png = os.path.join(
+                        bandage_img_dir, f"{sample}_{gfa_base.replace('.gfa', '.png')}"
                     )
+                    if not up_to_date(colored_gfa, gfa_file, walk_file):
+                        walk_tag_jobs.append((walk_file, gfa_file, colored_gfa, output_png, sample))
 
+            if walk_tag_jobs:
+                walk_memgate = _PlotMemoryGate(
+                    min_free_gb=plot_min_free_gb, check_sec=plot_mem_check_sec,
+                    label=f"{site_name}-walks"
+                )
+                W_walk = _effective_plot_workers(max_workers, plot_threads)
+
+                def _tag_walk(job):
+                    wf, gf, cg, _, _ = job
+                    walk_memgate.wait_for_memory()
+                    add_color_tags(wf, gf, cg)
+
+                with ThreadPoolExecutor(max_workers=W_walk) as ex:
+                    futs = [ex.submit(_tag_walk, j) for j in walk_tag_jobs]
+                    for fut in as_completed(futs):
+                        try:
+                            fut.result()
+                        except Exception as e:
+                            print(f"[warn] walk tag failed: {e}")
+
+            # collect bandage jobs after tagging
+            for walk_file in sample_walks_files:
+                for gfa_file in viz_gfa_files:
+                    gfa_base = os.path.basename(gfa_file)
+                    sample = os.path.basename(walk_file).replace(".walks.csv", "")
+                    colored_gfa = os.path.join(colored_gfa_dir, f"{sample}_{gfa_base}")
+                    output_png = os.path.join(
+                        bandage_img_dir, f"{sample}_{gfa_base.replace('.gfa', '.png')}"
+                    )
+                    if no_images:
+                        continue
+                    if not up_to_date(output_png, colored_gfa):
+                        bandage_jobs.append(
+                            (colored_gfa, output_png, walk_file, f"{site_name} - Sample {sample} Walk", True)
+                        )
+
+        #if not no_images and bandage_jobs:
+        #    W = _auto_workers(max_workers)
+        #    with ThreadPoolExecutor(max_workers=W) as ex:
+        #        futs = [ex.submit(_run_bandage, cg, png) for (cg, png, _, _, _) in bandage_jobs]
         if not no_images and bandage_jobs:
-            W = _auto_workers(max_workers)
-            with ThreadPoolExecutor(max_workers=W) as ex:
-                futs = [ex.submit(_run_bandage, cg, png) for (cg, png, _, _, _) in bandage_jobs]
-                for f in as_completed(futs):
-                    f.result()
-            for (cg, png, legend_src, title, is_walk) in bandage_jobs:
-                legend_out = os.path.join(legend_img_dir, os.path.basename(png))
-                create_legend_image(legend_src, png, legend_out, title, is_walk)
+             W = _effective_plot_workers(max_workers, plot_threads)
+             memgate = _PlotMemoryGate(min_free_gb=plot_min_free_gb, check_sec=plot_mem_check_sec, label=site_name)
+             with ThreadPoolExecutor(max_workers=W) as ex:
+                 futs = [ex.submit(_run_bandage_with_memwatch, cg, png, memgate) for (cg, png, _, _, _) in bandage_jobs]
+                 for f in as_completed(futs):
+                     f.result()
+             for (cg, png, legend_src, title, is_walk) in bandage_jobs:
+                 legend_out = os.path.join(legend_img_dir, os.path.basename(png))
+                 create_legend_image(legend_src, png, legend_out, title, is_walk, colored_gfa=cg)
 
     print("Plotting done.")
 
@@ -867,27 +1166,48 @@ def generate_complex_sites_dataframe():
 # CLI driver (example)
 # ------------------------------
 
+#def main():
+#    p = argparse.ArgumentParser()
+#    sub = p.add_subparsers(dest="cmd")
+
+#    sp = sub.add_parser("complex")
+#    sp.add_argument("vcf_file")
+#    sp.add_argument("gfab")
+#    sp.add_argument("--gff3",  required=True)
+#    sp.add_argument("--ref_fasta")
+#    sp.add_argument("--sep_pattern", default="#0#")
+#    sp.add_argument("--ref_name", default="CHM13")
+#    sp.add_argument("--plot_complex", action="store_true")
+#    sp.add_argument("--no-walks", dest="no_walks", action="store_true", help="Do not plot sample walks when rendering plots")
+#    sp.add_argument("--no_images", action="store_true", help=argparse.SUPPRESS)
+#    sp.add_argument("--max_workers", type=int, default=0, help="Max parallel Bandage workers (0=auto)")
+#    sp.add_argument("--gaf_file", default=None, help="Path to the gene alignments to the graph in GAF format")
+#    sp.add_argument("--min_free_gb", type=float, default=20.0, help="Minimum free RAM (GB) before launching parallel workers")
+#    sp.add_argument("--threads", "-t", dest="max_workers", type=int, default=0, help="Thread budget")
+#    sp.add_argument("-a", type=int, default=5)
+#    sp.add_argument("-n", type=int, default=1)
+#    sp.add_argument("-s", type=int, default=10000)
+#    sp.add_argument("-l", type=int, default=100000)
+#    sp.add_argument("--sites", type=int, default=1)
+#    sp.add_argument("--sv", type=int, default=1)
+#    sp.add_argument("--plot_threads", type=int, default=0, help=("Bandage plotting workers. If set, overrides auto sizing. If not set, plotting uses 1/3 of --threads (min 1) instead of 1/3 o"))
+#    sp.add_argument("--plot_min_free_gb", type=float, default=0.0, help=("Memory guard for Bandage: require at least this much free RAM (GB) before launching a plot. 0 disables the guard.") )
+    # other args (a, n, s, l, sites, sv, etc.) omitted for brevity; keep your originals
+#    sp.set_defaults(func=run_complex)
+
+#    args = p.parse_args()
+#    if not hasattr(args, "func"):
+#        p.print_help(); sys.exit(1)
+#    args.func(args)
+
 def main():
     p = argparse.ArgumentParser()
     sub = p.add_subparsers(dest="cmd")
-
-    sp = sub.add_parser("complex")
-    sp.add_argument("vcf_file")
-    sp.add_argument("gfab")
-    sp.add_argument("--gff3",  required=True)
-    sp.add_argument("--ref_fasta")
-    sp.add_argument("--sep_pattern", default="#0#")
-    sp.add_argument("--ref_name", default="CHM13")
-    sp.add_argument("--plot_complex", action="store_true")
-    sp.add_argument("--no_images", action="store_true", help="Skip rendering Bandage PNGs (colored GFAs + legends CSVs only)")
-    sp.add_argument("--max_workers", type=int, default=0, help="Max parallel Bandage workers (0=auto)")
-
-    # other args (a, n, s, l, sites, sv, etc.) omitted for brevity; keep your originals
-    sp.set_defaults(func=run_complex)
-
+    add_subparser(sub)
     args = p.parse_args()
     if not hasattr(args, "func"):
-        p.print_help(); sys.exit(1)
+        p.print_help()
+        sys.exit(1)
     args.func(args)
 
 
@@ -908,6 +1228,11 @@ def main():
 
 def run_complex(args):
     args = _normalize_args(args)
+
+    # Backward compatibility: --no_images is deprecated; treat as --no-walks
+    if getattr(args, 'no_images', False) and not getattr(args, 'no_walks', False):
+        args.no_walks = True
+        print('[WARN] --no_images is deprecated; use --no-walks instead.', file=sys.stderr)
 
     # 1) Build gene index once (fast region queries)
     _build_gene_index(args.gff3)
@@ -930,6 +1255,9 @@ def run_complex(args):
             sites=getattr(args, "sites", 1),
             sv=getattr(args, "sv", 1),
             ref_name=getattr(args, "ref_name", "CHM13"),
+            no_walks=getattr(args, 'no_walks', False),
+            max_workers=getattr(args, 'max_workers', 0),
+            min_free_gb=getattr(args, 'plot_min_free_gb', 20.0),
         )
     else:
         print("[warn] run_panscan_complex(...) not found in this module.")
@@ -938,10 +1266,11 @@ def run_complex(args):
     # 3) Plot / tag GFAs
     if getattr(args, "plot_complex", False):
         # render images + legends
-        plot_complex_sites(no_images=False, max_workers=getattr(args, "max_workers", 0))
+        #plot_complex_sites(no_images=False, no_walks=getattr(args, 'no_walks', False), max_workers=getattr(args, "max_workers", 0))
+        plot_complex_sites(no_images=False, no_walks=getattr(args, "no_walks", False), max_workers=getattr(args, "max_workers", 0), plot_threads=getattr(args, "plot_threads", 0), plot_min_free_gb=getattr(args, "plot_min_free_gb", 0.0), plot_mem_check_sec=getattr(args, "plot_mem_check_sec", 1.0))
     else:
         # default to no-image mode so legends/colored GFAs get produced for summary
-        plot_complex_sites(no_images=True, max_workers=getattr(args, "max_workers", 0))
+        plot_complex_sites(no_images=True, no_walks=getattr(args, 'no_walks', False), max_workers=getattr(args, "max_workers", 0), plot_threads=getattr(args, "plot_threads", 0), plot_min_free_gb=getattr(args, "plot_min_free_gb", 0.0), plot_mem_check_sec=getattr(args, "plot_mem_check_sec", 1.0))
 
     # 4) Build summary
     df = generate_complex_sites_dataframe()
@@ -974,14 +1303,21 @@ def add_subparser(subparsers):
 
     # Plot control
     parser.add_argument("--plot_complex", action="store_true", help=argparse.SUPPRESS)  
-    parser.add_argument("--no_images", action="store_true", help="Skip rendering Bandage PNGs (colored GFAs + legend CSVs only)")
+    parser.add_argument("--no-walks", dest="no_walks", action="store_true", help="Do not plot sample walks when rendering plots")
+
+    # legacy alias (deprecated)
+    parser.add_argument("--no_images", action="store_true", help=argparse.SUPPRESS)
 
     # Parallelism (alias both --threads/-t and --max_workers to same destination)
-    parser.add_argument("--threads", "-t", dest="max_workers", type=int, default=0,
-                        help="Max parallel Bandage workers (0 = auto)")
+    #parser.add_argument("--threads", "-t", dest="max_workers", type=int, default=0,
+    #                    help="Max parallel Bandage workers (0 = auto)")
+    parser.add_argument("--threads", "-t", dest="max_workers", type=int, default=0, help=("Thread budget for this command. By default, Bandage plotting uses 1/3 of this value (min 1). " "Use --plot_threads to override plotting concurrency explicitly. (0 = auto)"))
     parser.add_argument("--max_workers", dest="max_workers", type=int, default=0,
                         help=argparse.SUPPRESS)  # keep for backward compat, hidden in help
-
+    parser.add_argument("--plot_threads", type=int, default=0, help=("Bandage plotting workers. If set, overrides auto sizing. " "If not set, plotting uses 1/3 of --threads (min 1) instead of 1/3 of system CPUs."))
+    parser.add_argument("--plot_min_free_gb", type=float, default=0.0, help=("Memory guard for Bandage: require at least this much free RAM (GB) before launching a plot. " "0 disables the guard.") )
+    parser.add_argument("--min_free_gb", type=float, default=20.0, help="Minimum free RAM (GB) required before launching parallel region workers (default: 20.0).")
+    parser.add_argument("--plot_mem_check_sec", type=float, default=1.0, help="How often to re-check free RAM when the memory guard is active (seconds).")
     parser.set_defaults(func=run_complex)
 
 
