@@ -14,7 +14,7 @@ wget https://github.com/CATG-Github/panscan/releases/download/v1.6/panscan_1.6.s
 
 Run:
 ```bash
-singularity exec panscan.sif panscan
+singularity exec panscan_1.6.sif panscan
 ```
 
 You should see:
