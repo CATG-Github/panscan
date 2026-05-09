@@ -9,7 +9,7 @@ The easiest way to use **PanScan** is with its **Docker** or **Singularity** ima
 ### **Option 1: Singularity (Recommended)**
 Pull the image:
 ```bash
-wget https://github.com/CATG-Github/panscan/releases/download/v1.5/panscan.sif
+wget https://github.com/CATG-Github/panscan/releases/download/v1.6/panscan_1.6.sif
 ```
 
 Run:
